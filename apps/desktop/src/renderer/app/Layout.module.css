@@ -1,0 +1,220 @@
+.root {
+  display: grid;
+  grid-template-rows: var(--topbar-height, 36px) 1fr var(--statusbar-height, 24px);
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  background: var(--color-bg);
+}
+
+/* ─── Top bar ─── */
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--space-3, 12px);
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  -webkit-app-region: drag;
+  user-select: none;
+}
+
+.topbarLeft {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2, 8px);
+  flex: 0 0 var(--sidebar-width, 220px);
+}
+
+.topbarCenter {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  -webkit-app-region: no-drag;
+}
+
+.topbarRight {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2, 8px);
+  flex: 0 0 var(--sidebar-width, 220px);
+  justify-content: flex-end;
+  -webkit-app-region: no-drag;
+}
+
+.appIcon {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.appTitle {
+  font-size: var(--font-size-sm, 12px);
+  font-weight: var(--font-weight-semibold, 600);
+  letter-spacing: var(--letter-spacing-wide, 0.04em);
+  text-transform: uppercase;
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+.kbdHint {
+  font-size: var(--font-size-xs, 11px);
+  color: var(--color-text-muted);
+  background: var(--color-surface-2, #1a1a1a);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm, 3px);
+  padding: 1px 5px;
+}
+
+.panelToggle {
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-sm, 3px);
+  color: var(--color-text-muted);
+  transition: color var(--transition-fast, 80ms ease), background var(--transition-fast, 80ms ease);
+}
+
+.panelToggle:hover {
+  color: var(--color-text);
+  background: var(--color-surface-2, #1a1a1a);
+}
+
+.panelToggleActive {
+  color: var(--color-accent);
+}
+
+/* ─── Content area ─── */
+
+.content {
+  display: flex;
+  flex-direction: row;
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* ─── Sidebar ─── */
+
+.sidebar {
+  width: var(--sidebar-width, 220px);
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-surface);
+  border-right: 1px solid var(--color-border);
+  overflow: hidden;
+}
+
+.sidebarHandle {
+  width: var(--drag-handle-width, 4px);
+  flex-shrink: 0;
+  cursor: col-resize;
+  background: transparent;
+  transition: background var(--transition-fast, 80ms ease);
+  position: relative;
+  z-index: 1;
+}
+
+.sidebarHandle:hover,
+.sidebarHandleActive {
+  background: var(--color-accent);
+}
+
+/* ─── Main panel ─── */
+
+.main {
+  flex: 1;
+  overflow: hidden;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-bg);
+}
+
+/* ─── Right panel ─── */
+
+.rightPanelHandle {
+  width: var(--drag-handle-width, 4px);
+  flex-shrink: 0;
+  cursor: col-resize;
+  background: transparent;
+  transition: background var(--transition-fast, 80ms ease);
+}
+
+.rightPanelHandle:hover {
+  background: var(--color-accent);
+}
+
+.rightPanelHandle.hidden {
+  display: none;
+}
+
+.rightPanel {
+  width: 0;
+  max-width: 0;
+  flex-shrink: 0;
+  overflow: hidden;
+  background: var(--color-surface);
+  border-left: 1px solid var(--color-border);
+  transition: max-width var(--transition-slow, 280ms ease), width var(--transition-slow, 280ms ease);
+  display: flex;
+  flex-direction: column;
+}
+
+.rightPanelOpen {
+  width: var(--right-panel-width, 280px);
+  max-width: var(--right-panel-width, 280px);
+}
+
+/* ─── Status bar ─── */
+
+.statusbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--space-3, 12px);
+  background: var(--color-surface);
+  border-top: 1px solid var(--color-border);
+  user-select: none;
+}
+
+.statusLeft {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1, 4px);
+}
+
+.statusDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-green, #22c55e);
+  flex-shrink: 0;
+}
+
+.statusText {
+  font-size: var(--font-size-xs, 11px);
+  color: var(--color-text-muted);
+}
+
+.statusCenter {
+  flex: 1;
+}
+
+.statusRight {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2, 8px);
+}
+
+.statusItem {
+  font-size: var(--font-size-xs, 11px);
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.statusSep {
+  color: var(--color-border-hover, #2a2a2a);
+  font-size: var(--font-size-xs, 11px);
+}

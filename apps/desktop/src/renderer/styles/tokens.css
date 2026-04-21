@@ -1,0 +1,97 @@
+:root {
+  /* Colors */
+  --color-bg: #0d0d0d;
+  --color-surface: #141414;
+  --color-surface-2: #1a1a1a;
+  --color-surface-3: #202020;
+  --color-border: #1e1e1e;
+  --color-border-hover: #2a2a2a;
+  --color-border-active: #3a3a3a;
+
+  --color-text: #e8e8e8;
+  --color-text-muted: #666;
+  --color-text-secondary: #999;
+  --color-text-disabled: #3a3a3a;
+
+  --color-accent: #7c6af7;
+  --color-accent-hover: #8f7ff9;
+  --color-accent-active: #6b59e8;
+  --color-accent-muted: rgba(124, 106, 247, 0.15);
+  --color-accent-border: rgba(124, 106, 247, 0.3);
+
+  --color-green: #22c55e;
+  --color-green-muted: rgba(34, 197, 94, 0.15);
+  --color-red: #ef4444;
+  --color-red-muted: rgba(239, 68, 68, 0.15);
+  --color-yellow: #f59e0b;
+  --color-yellow-muted: rgba(245, 158, 11, 0.15);
+  --color-blue: #3b82f6;
+  --color-blue-muted: rgba(59, 130, 246, 0.15);
+
+  /* Typography */
+  --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Courier New', monospace;
+  --font-size-xs: 11px;
+  --font-size-sm: 12px;
+  --font-size-base: 13px;
+  --font-size-md: 14px;
+  --font-size-lg: 16px;
+  --font-size-xl: 20px;
+  --font-size-2xl: 24px;
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  --line-height-tight: 1.2;
+  --line-height-base: 1.5;
+  --line-height-relaxed: 1.7;
+  --letter-spacing-tight: -0.02em;
+  --letter-spacing-normal: 0;
+  --letter-spacing-wide: 0.04em;
+  --letter-spacing-wider: 0.08em;
+
+  /* Spacing */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  /* Border radius */
+  --radius-sm: 3px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+  --radius-xl: 14px;
+  --radius-full: 9999px;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.6);
+  --shadow-xl: 0 16px 40px rgba(0, 0, 0, 0.7);
+
+  /* Transitions */
+  --transition-fast: 80ms ease;
+  --transition-base: 150ms ease;
+  --transition-slow: 280ms ease;
+
+  /* Z-index layers */
+  --z-base: 0;
+  --z-raised: 10;
+  --z-dropdown: 100;
+  --z-sticky: 200;
+  --z-overlay: 300;
+  --z-modal: 400;
+  --z-toast: 500;
+
+  /* Layout */
+  --sidebar-width: 220px;
+  --right-panel-width: 280px;
+  --topbar-height: 36px;
+  --statusbar-height: 24px;
+  --drag-handle-width: 4px;
+}

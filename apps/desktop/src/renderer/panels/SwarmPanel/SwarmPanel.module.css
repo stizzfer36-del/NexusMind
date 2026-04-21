@@ -1,0 +1,388 @@
+.root {
+  display: flex;
+  flex-direction: row;
+  height: 100%;
+  background: var(--color-bg);
+  overflow: hidden;
+}
+
+/* ─── Sidebar ─── */
+
+.sidebar {
+  width: 220px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-surface);
+  border-right: 1px solid var(--color-border);
+  overflow: hidden;
+}
+
+.sidebarHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3, 12px) var(--space-3, 12px) var(--space-2, 8px);
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.sidebarTitle {
+  font-size: var(--font-size-xs, 11px);
+  font-weight: var(--font-weight-semibold, 600);
+  letter-spacing: var(--letter-spacing-wider, 0.08em);
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.newBtn {
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-sm, 3px);
+  font-size: 16px;
+  color: var(--color-text-muted);
+  transition: color var(--transition-fast, 80ms ease), background var(--transition-fast, 80ms ease);
+}
+
+.newBtn:hover {
+  color: var(--color-text);
+  background: var(--color-surface-2, #1a1a1a);
+}
+
+/* ─── New session form ─── */
+
+.newForm {
+  padding: var(--space-2, 8px) var(--space-3, 12px);
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.newInput {
+  width: 100%;
+  background: var(--color-surface-2, #1a1a1a);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm, 3px);
+  padding: var(--space-1, 4px) var(--space-2, 8px);
+  font-size: var(--font-size-sm, 12px);
+  color: var(--color-text);
+  transition: border-color var(--transition-fast, 80ms);
+}
+
+.newInput:focus {
+  border-color: var(--color-accent);
+  outline: none;
+}
+
+.newActions {
+  display: flex;
+  gap: var(--space-1, 4px);
+  margin-top: var(--space-1, 4px);
+}
+
+.newConfirm {
+  padding: 2px var(--space-3, 12px);
+  background: var(--color-accent-muted, rgba(124,106,247,0.15));
+  border: 1px solid var(--color-accent-border, rgba(124,106,247,0.3));
+  border-radius: var(--radius-sm, 3px);
+  color: var(--color-accent);
+  font-size: var(--font-size-xs, 11px);
+}
+
+.newCancel {
+  padding: 2px var(--space-3, 12px);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm, 3px);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs, 11px);
+}
+
+/* ─── Session list ─── */
+
+.sessionList {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-1, 4px) 0;
+}
+
+.emptyList {
+  padding: var(--space-4, 16px) var(--space-3, 12px);
+  font-size: var(--font-size-sm, 12px);
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+.sessionItem {
+  padding: var(--space-2, 8px) var(--space-3, 12px);
+  cursor: pointer;
+  transition: background var(--transition-fast, 80ms ease);
+  border-left: 2px solid transparent;
+}
+
+.sessionItem:hover {
+  background: var(--color-surface-2, #1a1a1a);
+}
+
+.sessionItemActive {
+  background: var(--color-surface-2, #1a1a1a);
+  border-left-color: var(--color-accent);
+}
+
+.sessionItemHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-1, 4px);
+  margin-bottom: 3px;
+}
+
+.sessionName {
+  font-size: var(--font-size-sm, 12px);
+  color: var(--color-text);
+  font-weight: var(--font-weight-medium, 500);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.statusBadge {
+  font-size: 10px;
+  border: 1px solid;
+  border-radius: var(--radius-sm, 3px);
+  padding: 0 5px;
+  white-space: nowrap;
+  font-weight: var(--font-weight-medium, 500);
+  flex-shrink: 0;
+}
+
+.sessionMeta {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--font-size-xs, 11px);
+  color: var(--color-text-muted);
+}
+
+/* ─── Detail view ─── */
+
+.detail {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.emptyDetail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: var(--space-3, 12px);
+  color: var(--color-text-muted);
+  padding: var(--space-6, 24px);
+}
+
+.emptyIcon {
+  font-size: 40px;
+  opacity: 0.4;
+}
+
+.emptyTitle {
+  font-size: var(--font-size-md, 14px);
+  font-weight: var(--font-weight-semibold, 600);
+  color: var(--color-text-secondary, #999);
+}
+
+.emptyText {
+  font-size: var(--font-size-sm, 12px);
+  text-align: center;
+}
+
+.emptyBtn {
+  padding: var(--space-2, 8px) var(--space-4, 16px);
+  background: var(--color-accent-muted, rgba(124,106,247,0.15));
+  border: 1px solid var(--color-accent-border, rgba(124,106,247,0.3));
+  border-radius: var(--radius-md, 6px);
+  color: var(--color-accent);
+  font-size: var(--font-size-sm, 12px);
+  transition: background var(--transition-fast, 80ms);
+}
+
+.emptyBtn:hover {
+  background: rgba(124, 106, 247, 0.25);
+}
+
+/* ─── Detail header ─── */
+
+.detailHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: var(--space-4, 16px);
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.detailTitleRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3, 12px);
+}
+
+.detailTitle {
+  font-size: var(--font-size-lg, 16px);
+  font-weight: var(--font-weight-semibold, 600);
+  color: var(--color-text);
+}
+
+.statusBadgeLg {
+  font-size: var(--font-size-xs, 11px);
+  font-weight: var(--font-weight-medium, 500);
+  border: 1px solid;
+  border-radius: var(--radius-sm, 3px);
+  padding: 2px var(--space-2, 8px);
+  letter-spacing: var(--letter-spacing-wide, 0.04em);
+}
+
+.detailActions {
+  display: flex;
+  gap: var(--space-2, 8px);
+}
+
+.stopBtn {
+  padding: var(--space-1, 4px) var(--space-3, 12px);
+  background: var(--color-red-muted, rgba(239,68,68,0.15));
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: var(--radius-md, 6px);
+  color: var(--color-red);
+  font-size: var(--font-size-sm, 12px);
+  transition: background var(--transition-fast, 80ms);
+}
+
+.stopBtn:hover {
+  background: rgba(239, 68, 68, 0.25);
+}
+
+/* ─── Progress ─── */
+
+.progressSection {
+  padding: var(--space-3, 12px) var(--space-4, 16px);
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.progressRow {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: var(--space-1, 4px);
+}
+
+.progressLabel {
+  font-size: var(--font-size-xs, 11px);
+  color: var(--color-text-muted);
+}
+
+.progressBar {
+  height: 4px;
+  background: var(--color-surface-2, #1a1a1a);
+  border-radius: var(--radius-full, 9999px);
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  border-radius: var(--radius-full, 9999px);
+  transition: width var(--transition-base, 150ms ease);
+}
+
+/* ─── Sections ─── */
+
+.section {
+  padding: var(--space-4, 16px);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.sectionTitle {
+  font-size: var(--font-size-xs, 11px);
+  font-weight: var(--font-weight-semibold, 600);
+  letter-spacing: var(--letter-spacing-wider, 0.08em);
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  margin-bottom: var(--space-3, 12px);
+}
+
+.noAgents {
+  font-size: var(--font-size-sm, 12px);
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+/* ─── Agent grid ─── */
+
+.agentGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: var(--space-2, 8px);
+}
+
+.agentCard {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2, 8px);
+  padding: var(--space-2, 8px) var(--space-3, 12px);
+  background: var(--color-surface-2, #1a1a1a);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md, 6px);
+}
+
+.agentIcon {
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.agentInfo {
+  min-width: 0;
+}
+
+.agentRole {
+  font-size: var(--font-size-sm, 12px);
+  font-weight: var(--font-weight-medium, 500);
+  color: var(--color-text);
+  text-transform: capitalize;
+}
+
+.agentId {
+  font-size: var(--font-size-xs, 11px);
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+}
+
+/* ─── Config grid ─── */
+
+.configGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: var(--space-2, 8px);
+}
+
+.configItem {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.configKey {
+  font-size: var(--font-size-xs, 11px);
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wider, 0.08em);
+}
+
+.configVal {
+  font-size: var(--font-size-sm, 12px);
+  font-weight: var(--font-weight-semibold, 600);
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+}

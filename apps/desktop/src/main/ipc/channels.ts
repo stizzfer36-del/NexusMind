@@ -18,11 +18,13 @@ export const channels: HandlerMap = {
   'terminal:kill': stub,
 
   // swarm
+  'swarm:listSessions': stub,
   'swarm:start': stub,
   'swarm:stop': stub,
   'swarm:getState': stub,
 
   // kanban / tasks
+  'kanban:listTasks': stub,
   'kanban:createTask': stub,
   'kanban:updateTask': stub,
   'kanban:deleteTask': stub,
@@ -37,6 +39,12 @@ export const channels: HandlerMap = {
   'settings:get': stub,
   'settings:set': stub,
 
+  // keychain
+  'keychain:set': stub,
+  'keychain:get': stub,
+  'keychain:delete': stub,
+  'keychain:list': stub,
+
   // mcp
   'mcp:listTools': stub,
   'mcp:callTool': stub,
@@ -46,6 +54,7 @@ export const channels: HandlerMap = {
   // memory
   'memory:search': stub,
   'memory:add': stub,
+  'memory:delete': stub,
 
   // voice
   'voice:start': stub,

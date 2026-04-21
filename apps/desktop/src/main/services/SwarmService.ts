@@ -120,6 +120,7 @@ export class SwarmService {
       'swarm:create': (event: any, config: SwarmConfig, name?: string) =>
         this.createSession(config, name),
       'swarm:list': () => this.listSessions(),
+      'swarm:listSessions': () => this.listSessions(),
       'swarm:getSession': (event: any, id: string) => this.getSession(id),
     }
   }

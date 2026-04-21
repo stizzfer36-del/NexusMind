@@ -56,11 +56,13 @@ export interface IpcEvents {
   'terminal:kill': (id: string) => void
 
   // swarm
+  'swarm:listSessions': () => SwarmSession[]
   'swarm:start': (config: SwarmSession) => SwarmSession
   'swarm:stop': (sessionId: string) => void
   'swarm:getState': (sessionId: string) => SwarmState
 
   // kanban / tasks
+  'kanban:listTasks': () => Task[]
   'kanban:createTask': (task: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>) => Task
   'kanban:updateTask': (task: Task) => Task
   'kanban:deleteTask': (taskId: string) => void
@@ -75,6 +77,12 @@ export interface IpcEvents {
   'settings:get': (key: string) => unknown
   'settings:set': (payload: { key: string; value: unknown }) => void
 
+  // keychain
+  'keychain:set': (provider: string, key: string) => void
+  'keychain:get': (provider: string) => string | null
+  'keychain:delete': (provider: string) => void
+  'keychain:list': () => string[]
+
   // mcp
   'mcp:listTools': (serverId: MCPServerId) => MCPTool[]
   'mcp:callTool': (call: MCPToolCall) => MCPToolResult
@@ -84,6 +92,7 @@ export interface IpcEvents {
   // memory
   'memory:search': (payload: { query: string; type?: MemoryType }) => MemorySearchResult[]
   'memory:add': (entry: Omit<MemoryEntry, 'id' | 'createdAt' | 'accessedAt'>) => MemoryEntry
+  'memory:delete': (id: string) => void
 
   // voice
   'voice:start': (mode: VoiceMode) => void

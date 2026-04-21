@@ -167,6 +167,7 @@ export class KanbanService {
       'kanban:moveTask': (_event: any, payload: { taskId: string; column: string }) =>
         this.moveTask(payload.taskId, payload.column, 0),
       'kanban:getTasks': (_event: any, columnId?: string) => this.getTasks(columnId),
+      'kanban:listTasks': (_event: any) => this.getTasks(),
       'kanban:create': (_event: any, task: Partial<Task>) => this.createTask(task),
       'kanban:update': (_event: any, id: string, updates: Partial<Task>) => this.updateTask(id, updates),
       'kanban:move': (_event: any, id: string, columnId: string, position: number) =>

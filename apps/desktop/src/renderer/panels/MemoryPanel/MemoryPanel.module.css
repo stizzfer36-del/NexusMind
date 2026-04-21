@@ -1,0 +1,296 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--color-bg);
+  overflow: hidden;
+}
+
+/* ─── Search area ─── */
+
+.searchArea {
+  flex-shrink: 0;
+  padding: var(--space-3, 12px) var(--space-4, 16px) var(--space-2, 8px);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.searchRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2, 8px);
+  background: var(--color-surface-2, #1a1a1a);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md, 6px);
+  padding: 6px var(--space-3, 12px);
+  transition: border-color var(--transition-fast, 80ms);
+}
+
+.searchRow:focus-within {
+  border-color: var(--color-accent);
+}
+
+.searchIcon {
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+.searchInput {
+  flex: 1;
+  background: transparent;
+  font-size: var(--font-size-sm, 12px);
+  color: var(--color-text);
+  border: none;
+  outline: none;
+}
+
+.searchInput::-webkit-search-cancel-button {
+  display: none;
+}
+
+.clearBtn {
+  color: var(--color-text-muted);
+  font-size: 16px;
+  line-height: 1;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  transition: color var(--transition-fast, 80ms);
+}
+
+.clearBtn:hover {
+  color: var(--color-text);
+}
+
+.filters {
+  display: flex;
+  gap: var(--space-1, 4px);
+  margin-top: var(--space-2, 8px);
+  flex-wrap: wrap;
+}
+
+.filterChip {
+  padding: 2px var(--space-2, 8px);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full, 9999px);
+  font-size: var(--font-size-xs, 11px);
+  color: var(--color-text-muted);
+  transition: all var(--transition-fast, 80ms);
+}
+
+.filterChip:hover {
+  color: var(--color-text);
+  border-color: var(--color-border-hover, #2a2a2a);
+}
+
+.filterChipActive {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+  background: var(--color-accent-muted, rgba(124,106,247,0.15));
+}
+
+/* ─── Results ─── */
+
+.results {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-3, 12px) var(--space-4, 16px);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2, 8px);
+}
+
+.loading {
+  text-align: center;
+  padding: var(--space-8, 32px);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm, 12px);
+}
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2, 8px);
+  height: 100%;
+  color: var(--color-text-muted);
+  padding: var(--space-8, 32px);
+}
+
+.emptyIcon {
+  font-size: 40px;
+  opacity: 0.4;
+}
+
+.emptyTitle {
+  font-size: var(--font-size-md, 14px);
+  font-weight: var(--font-weight-semibold, 600);
+  color: var(--color-text-secondary, #999);
+}
+
+.emptyText {
+  font-size: var(--font-size-sm, 12px);
+  text-align: center;
+  max-width: 260px;
+  line-height: var(--line-height-relaxed, 1.7);
+}
+
+/* ─── Result card ─── */
+
+.resultCard {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md, 6px);
+  padding: var(--space-3, 12px);
+  cursor: pointer;
+  transition: border-color var(--transition-fast, 80ms), box-shadow var(--transition-fast, 80ms);
+}
+
+.resultCard:hover {
+  border-color: var(--color-border-hover, #2a2a2a);
+  box-shadow: var(--shadow-sm, 0 1px 3px rgba(0,0,0,0.4));
+}
+
+.resultCardExpanded {
+  border-color: var(--color-accent-border, rgba(124,106,247,0.3));
+  background: var(--color-surface-2, #1a1a1a);
+}
+
+.cardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-2, 8px);
+}
+
+.cardMeta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2, 8px);
+}
+
+.typeBadge {
+  font-size: 10px;
+  font-weight: var(--font-weight-medium, 500);
+  border: 1px solid;
+  border-radius: var(--radius-sm, 3px);
+  padding: 0 5px;
+}
+
+.similarity {
+  font-size: var(--font-size-xs, 11px);
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.timestamp {
+  font-size: var(--font-size-xs, 11px);
+  color: var(--color-text-muted);
+}
+
+.cardActions {
+  display: flex;
+  gap: var(--space-1, 4px);
+}
+
+.deleteBtn {
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-sm, 3px);
+  color: var(--color-text-muted);
+  transition: color var(--transition-fast, 80ms), background var(--transition-fast, 80ms);
+  opacity: 0;
+}
+
+.resultCard:hover .deleteBtn {
+  opacity: 1;
+}
+
+.deleteBtn:hover {
+  color: var(--color-red);
+  background: var(--color-red-muted, rgba(239,68,68,0.15));
+}
+
+.cardContent {
+  font-size: var(--font-size-sm, 12px);
+  color: var(--color-text-secondary, #999);
+  line-height: var(--line-height-base, 1.5);
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.cardContentExpanded {
+  display: block;
+  -webkit-line-clamp: unset;
+  color: var(--color-text);
+  white-space: pre-wrap;
+}
+
+/* ─── Card details (expanded) ─── */
+
+.cardDetails {
+  margin-top: var(--space-3, 12px);
+  padding-top: var(--space-3, 12px);
+  border-top: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2, 8px);
+}
+
+.detailRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3, 12px);
+}
+
+.detailKey {
+  font-size: var(--font-size-xs, 11px);
+  font-weight: var(--font-weight-semibold, 600);
+  letter-spacing: var(--letter-spacing-wider, 0.08em);
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  width: 72px;
+  flex-shrink: 0;
+}
+
+.detailVal {
+  font-size: var(--font-size-sm, 12px);
+  color: var(--color-text-secondary, #999);
+}
+
+.mono {
+  font-family: var(--font-mono);
+}
+
+.importanceBar {
+  flex: 1;
+  height: 4px;
+  background: var(--color-surface-3, #202020);
+  border-radius: var(--radius-full, 9999px);
+  overflow: hidden;
+  max-width: 120px;
+}
+
+.importanceFill {
+  height: 100%;
+  background: var(--color-accent);
+  border-radius: var(--radius-full, 9999px);
+}
+
+.tagList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1, 4px);
+}
+
+.tag {
+  font-size: var(--font-size-xs, 11px);
+  background: var(--color-surface-3, #202020);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full, 9999px);
+  padding: 0 6px;
+  color: var(--color-text-secondary, #999);
+}
