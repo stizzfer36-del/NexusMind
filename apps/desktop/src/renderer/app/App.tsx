@@ -12,6 +12,7 @@ import { SettingsPanel } from '../panels/SettingsPanel'
 import { MemoryPanel } from '../panels/MemoryPanel'
 import { ReplayPanel } from '../panels/ReplayPanel'
 import { BenchPanel } from '../panels/BenchPanel'
+import { GraphPanel } from '../panels/GraphPanel'
 import { OnboardingPanel } from '../panels/OnboardingPanel'
 
 const PANELS: Record<Route, React.ReactNode> = {
@@ -22,6 +23,7 @@ const PANELS: Record<Route, React.ReactNode> = {
   replay: <ReplayPanel />,
   settings: <SettingsPanel />,
   bench: <BenchPanel />,
+  graph: <GraphPanel />,
 }
 
 function AppContent() {

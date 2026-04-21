@@ -64,8 +64,12 @@ export const channels: HandlerMap = {
   'voice:tts': stub,
 
   // graph
-  'graph:get': stub,
+  'graph:list': stub,
+  'graph:load': stub,
   'graph:save': stub,
+  'graph:delete': stub,
+  'graph:templates': stub,
+  'graph:execute': stub,
 
   // replay
   'replay:get': stub,

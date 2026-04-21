@@ -15,6 +15,7 @@ import { MemoryService } from './services/MemoryService.js'
 import { MCPService } from './services/MCPService.js'
 import { EventRecorder } from './services/EventRecorder.js'
 import { BenchService } from './services/BenchService.js'
+import { GraphService } from './services/graph/GraphService.js'
 
 async function safeInit(name: string, fn: () => void | Promise<void>): Promise<void> {
   try {
@@ -58,6 +59,9 @@ async function bootstrap(): Promise<void> {
   const bench = new BenchService()
   await safeInit('BenchService', () => bench.init())
 
+  const graphService = new GraphService()
+  await safeInit('GraphService', () => graphService.init())
+
   const router = new IPCRouter()
   const allHandlers: Record<string, any> = {
     ...channels,
@@ -72,6 +76,7 @@ async function bootstrap(): Promise<void> {
     ...mcp.getHandlers(),
     ...eventRecorder.getHandlers(),
     ...bench.getHandlers(),
+    ...graphService.getHandlers(),
   }
   router.registerAll(allHandlers)
 

@@ -26,6 +26,8 @@ import type {
   TTSRequest,
   VoiceMode,
   WorkflowDAG,
+  WorkflowTemplate,
+  WorkflowRunRequest,
   StreamChunk,
 } from './types/index.js'
 
@@ -106,8 +108,12 @@ export interface IpcEvents {
   'voice:tts': (request: TTSRequest) => Uint8Array
 
   // graph
-  'graph:get': (graphId: string) => WorkflowDAG
-  'graph:save': (graph: WorkflowDAG) => WorkflowDAG
+  'graph:list': () => WorkflowDAG[]
+  'graph:load': (dagId: string) => WorkflowDAG | null
+  'graph:save': (dag: WorkflowDAG) => void
+  'graph:delete': (dagId: string) => void
+  'graph:templates': () => WorkflowTemplate[]
+  'graph:execute': (payload: WorkflowRunRequest) => { runId: string }
 
   // replay
   'replay:get': (sessionId: string) => ReplaySession

@@ -1,8 +1,49 @@
+export type WorkflowNodeType =
+  | 'agent'
+  | 'tool'
+  | 'condition'
+  | 'start'
+  | 'end'
+
+export interface WorkflowNode {
+  id: string
+  type: WorkflowNodeType
+  label: string
+  position: { x: number; y: number }
+  config?: Record<string, unknown>
+}
+
+export interface WorkflowEdge {
+  id: string
+  source: string
+  target: string
+  label?: string
+  condition?: string
+}
+
 export interface WorkflowDAG {
   id: string
-  nodes: Array<{ id: string; type: string; data?: unknown }>
-  edges: Array<{ from: string; to: string; condition?: string }>
+  name: string
+  description?: string
+  nodes: WorkflowNode[]
+  edges: WorkflowEdge[]
+  createdAt: number
+  updatedAt: number
 }
+
+export interface WorkflowRunRequest {
+  dagId: string
+  input?: string
+}
+
+export interface WorkflowTemplate {
+  id: string
+  name: string
+  description: string
+  dag: WorkflowDAG
+}
+
+// ─── Swarm graph types (used by SwarmGraph.ts / SwarmService.ts) ─────────────
 
 export type SwarmNodeId =
   | 'coordinator'

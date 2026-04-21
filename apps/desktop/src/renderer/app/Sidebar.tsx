@@ -65,6 +65,18 @@ const BenchIcon = () => (
   </svg>
 )
 
+const GraphIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+    <circle cx="3" cy="8" r="1.5" stroke="currentColor" strokeWidth="1.2"/>
+    <circle cx="13" cy="3" r="1.5" stroke="currentColor" strokeWidth="1.2"/>
+    <circle cx="13" cy="13" r="1.5" stroke="currentColor" strokeWidth="1.2"/>
+    <circle cx="8" cy="8" r="1.5" stroke="currentColor" strokeWidth="1.2"/>
+    <line x1="4.5" y1="8" x2="6.5" y2="8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+    <line x1="9.5" y1="7" x2="11.5" y2="4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+    <line x1="9.5" y1="9" x2="11.5" y2="12" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+  </svg>
+)
+
 const CollapseIcon = ({ collapsed }: { collapsed: boolean }) => (
   <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ transform: collapsed ? 'rotate(180deg)' : 'none', transition: 'transform 150ms ease' }}>
     <path d="M9 3L5 7l4 4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
@@ -78,6 +90,7 @@ const NAV_ITEMS: NavItem[] = [
   { route: 'memory', label: 'Memory', shortcut: '⌘4', icon: <MemoryIcon /> },
   { route: 'replay', label: 'Replay', shortcut: '⌘5', icon: <ReplayIcon /> },
   { route: 'bench', label: 'Bench', shortcut: '⌘B', icon: <BenchIcon /> },
+  { route: 'graph', label: 'Graph', shortcut: '⌘G', icon: <GraphIcon /> },
 ]
 
 interface SidebarProps {
