@@ -19,9 +19,9 @@ export function createOnboardingWindow(): BrowserWindow {
   window.setMenuBarVisibility(false)
 
   if (process.env.ELECTRON_RENDERER_URL) {
-    window.loadURL(process.env.ELECTRON_RENDERER_URL)
+    window.loadURL(process.env.ELECTRON_RENDERER_URL + '#onboarding')
   } else {
-    window.loadFile(path.join(__dirname, '../../renderer/index.html'))
+    window.loadURL('file://' + path.join(__dirname, '../../renderer/index.html') + '#onboarding')
   }
 
   window.on('close', () => {

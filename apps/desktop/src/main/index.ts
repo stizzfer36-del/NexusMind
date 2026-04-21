@@ -1,6 +1,7 @@
 import { app } from 'electron'
 import { WindowManager } from './windows/WindowManager.js'
 import { createMainWindow } from './windows/MainWindow.js'
+import { createOnboardingWindow } from './windows/OnboardingWindow.js'
 import { IPCRouter } from './ipc/IPCRouter.js'
 import { channels } from './ipc/channels.js'
 import { DatabaseService } from './services/DatabaseService.js'
@@ -13,33 +14,41 @@ import { SwarmService } from './services/SwarmService.js'
 import { MemoryService } from './services/MemoryService.js'
 import { MCPService } from './services/MCPService.js'
 
+async function safeInit(name: string, fn: () => void | Promise<void>): Promise<void> {
+  try {
+    await fn()
+  } catch (err) {
+    console.error(`[bootstrap] Failed to init ${name}:`, err)
+  }
+}
+
 async function bootstrap(): Promise<void> {
   const db = new DatabaseService()
   await db.init()
 
   const settings = new SettingsService()
-  await settings.init()
+  await safeInit('SettingsService', () => settings.init())
 
   const keychain = new KeychainService()
-  await keychain.init()
+  await safeInit('KeychainService', () => keychain.init())
 
   const modelRouter = new ModelRouter()
-  await modelRouter.init()
+  await safeInit('ModelRouter', () => modelRouter.init())
 
   const ptyManager = new PtyManager()
-  await ptyManager.init()
+  await safeInit('PtyManager', () => ptyManager.init())
 
   const kanban = new KanbanService()
-  await kanban.init()
-
-  const swarm = new SwarmService()
-  await swarm.init()
+  await safeInit('KanbanService', () => kanban.init())
 
   const memory = new MemoryService()
-  await memory.init()
+  await safeInit('MemoryService', () => memory.init())
+
+  const swarm = new SwarmService()
+  await safeInit('SwarmService', () => swarm.init())
 
   const mcp = new MCPService()
-  await mcp.init()
+  await safeInit('MCPService', () => mcp.init())
 
   const router = new IPCRouter()
   const allHandlers: Record<string, any> = {
@@ -56,7 +65,19 @@ async function bootstrap(): Promise<void> {
   }
   router.registerAll(allHandlers)
 
-  createMainWindow()
+  app.on('before-quit', () => {
+    ptyManager.listSessions().forEach(id => {
+      try { ptyManager.kill(id) } catch {}
+    })
+  })
+
+  const onboardingComplete = settings.get<boolean>('onboardingComplete', false)
+
+  if (!onboardingComplete) {
+    createOnboardingWindow()
+  } else {
+    createMainWindow()
+  }
 }
 
 app.whenReady().then(bootstrap).catch(console.error)

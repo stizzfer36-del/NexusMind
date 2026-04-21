@@ -41,8 +41,12 @@ function ApiKeyRow({ field }: { field: ApiKeyField }) {
   const [value, setValue] = useState('')
   const [visible, setVisible] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'ok' | 'fail'>('idle')
+  const [modelCount, setModelCount] = useState<number | null>(null)
   const getIPC = useIPC<'keychain:get'>()
   const setIPC = useIPC<'keychain:set'>()
+  const validateIPC = useIPC<'model:validate'>()
+  const modelsIPC = useIPC<'models:list'>()
 
   // Load stored value
   useEffect(() => {
@@ -60,6 +64,28 @@ function ApiKeyRow({ field }: { field: ApiKeyField }) {
       console.error('Failed to save API key:', err)
     }
   }, [setIPC, field.provider, value])
+
+  const handleTest = useCallback(async () => {
+    setTestStatus('testing')
+    setModelCount(null)
+    try {
+      const valid = await validateIPC.invoke('model:validate', field.provider)
+      if (valid) {
+        setTestStatus('ok')
+        // Get model count for this provider
+        const allModels = await modelsIPC.invoke('models:list')
+        const providerModels = allModels.filter((m: any) =>
+          m.provider === field.provider || m.provider?.toLowerCase() === field.provider.toLowerCase()
+        )
+        setModelCount(providerModels.length)
+      } else {
+        setTestStatus('fail')
+      }
+    } catch {
+      setTestStatus('fail')
+    }
+    setTimeout(() => setTestStatus('idle'), 5000)
+  }, [validateIPC, modelsIPC, field.provider])
 
   return (
     <div className={styles.keyRow}>
@@ -103,7 +129,18 @@ function ApiKeyRow({ field }: { field: ApiKeyField }) {
         >
           {saved ? '✓ Saved' : 'Save'}
         </button>
+        <button
+          className={`${styles.testKeyBtn} ${testStatus === 'ok' ? styles.testKeyBtnOk : testStatus === 'fail' ? styles.testKeyBtnFail : ''}`}
+          onClick={handleTest}
+          disabled={!value.trim() || testStatus === 'testing'}
+          type="button"
+        >
+          {testStatus === 'testing' ? '…' : testStatus === 'ok' ? '✓' : testStatus === 'fail' ? '✗' : 'Test'}
+        </button>
       </div>
+      {testStatus === 'ok' && modelCount !== null && (
+        <div className={styles.modelCountBadge}>{modelCount} models available</div>
+      )}
     </div>
   )
 }

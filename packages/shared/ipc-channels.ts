@@ -72,6 +72,7 @@ export interface IpcEvents {
   'models:list': () => ModelConfig[]
   'models:getConfig': (modelId: ModelId) => ModelConfig
   'models:streamChat': (payload: { modelId: ModelId; messages: Array<{ role: string; content: string }> }) => AsyncIterable<StreamChunk>
+  'model:validate': (provider: string) => boolean
 
   // settings
   'settings:get': (key: string) => unknown

@@ -10,6 +10,7 @@ import { KanbanPanel } from '../panels/KanbanPanel'
 import { SwarmPanel } from '../panels/SwarmPanel'
 import { SettingsPanel } from '../panels/SettingsPanel'
 import { MemoryPanel } from '../panels/MemoryPanel'
+import { OnboardingPanel } from '../panels/OnboardingPanel'
 
 const PANELS: Record<Route, React.ReactNode> = {
   terminal: <TerminalPanel />,
@@ -53,6 +54,12 @@ export function App() {
   useEffect(() => {
     document.title = 'NexusMind'
   }, [])
+
+  const isOnboarding = window.location.hash === '#onboarding'
+
+  if (isOnboarding) {
+    return <OnboardingPanel />
+  }
 
   return (
     <RouterProvider>

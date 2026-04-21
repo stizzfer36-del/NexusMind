@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useIPC, useIPCEvent } from '../../hooks'
 import type { SwarmSession, SwarmState } from '@nexusmind/shared'
 import styles from './SwarmPanel.module.css'
@@ -38,8 +38,12 @@ function fmt(ts: number): string {
 export function SwarmPanel() {
   const [sessions, setSessions] = useState<SwarmSession[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [showNewForm, setShowNewForm] = useState(false)
-  const [newName, setNewName] = useState('')
+  const [showModal, setShowModal] = useState(false)
+  const [goalText, setGoalText] = useState('')
+  const [agentCount, setAgentCount] = useState(4)
+
+  const selectedIdRef = useRef<string | null>(null)
+  useEffect(() => { selectedIdRef.current = selectedId }, [selectedId])
 
   const listIPC = useIPC<'swarm:listSessions'>()
   const startIPC = useIPC<'swarm:start'>()
@@ -55,45 +59,37 @@ export function SwarmPanel() {
     }).catch(console.error)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Real-time swarm state updates
+  // Real-time swarm state updates — use ref so callback never goes stale
   useIPCEvent('swarm:update', useCallback((state: SwarmState) => {
     setSessions(prev => prev.map(s =>
-      s.id === selectedId ? { ...s, state, updatedAt: Date.now() } : s
+      s.id === selectedIdRef.current ? { ...s, state, updatedAt: Date.now() } : s
     ))
-  }, [selectedId]))
+  }, []))
 
-  const handleNewSession = useCallback(async () => {
-    if (!newName.trim()) return
-    const defaultConfig: SwarmSession = {
-      id: '',
-      name: newName.trim(),
-      config: {
-        maxAgents: 4,
+  const handleLaunch = useCallback(async () => {
+    if (!goalText.trim()) return
+    try {
+      // Step 1: create session to obtain a real ID
+      const session: SwarmSession = await (window.nexusAPI as any).invoke('swarm:create', {
+        maxAgents: agentCount,
         maxRounds: 10,
         consensusThreshold: 0.75,
-        timeoutMs: 60000,
+        timeoutMs: 120000,
         enableReflection: true,
-      },
-      state: {
-        status: 'idle' as any,
-        currentRound: 0,
-        agentIds: [],
-        messages: [],
-        consensusReached: false,
-      },
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    }
-    try {
-      const session = await startIPC.invoke('swarm:start', defaultConfig)
+      }, goalText.trim())
+
+      // Step 2: start the created session
+      await startIPC.invoke('swarm:start', session)
+
       setSessions(prev => [...prev, session])
       setSelectedId(session.id)
-      setNewName('')
-      setShowNewForm(false)
+      setGoalText('')
+      setAgentCount(4)
+      setShowModal(false)
     } catch (err) {
       console.error('Failed to start swarm session:', err)
     }
-  }, [startIPC, newName])
+  }, [startIPC, goalText, agentCount])
 
   const handleStop = useCallback(async (sessionId: string) => {
     try {
@@ -114,38 +110,64 @@ export function SwarmPanel() {
 
   return (
     <div className={styles.root}>
+      {/* New Session Modal */}
+      {showModal && (
+        <div className={styles.modal}>
+          <div className={styles.modalOverlay} onClick={() => setShowModal(false)} />
+          <div className={styles.modalCard}>
+            <div className={styles.modalTitle}>New Swarm Session</div>
+            <div className={styles.modalBody}>
+              <label className={styles.sectionTitle}>What should the swarm work on?</label>
+              <input
+                className={styles.goalInput}
+                placeholder="Describe the goal…"
+                value={goalText}
+                onChange={e => setGoalText(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') handleLaunch()
+                  if (e.key === 'Escape') setShowModal(false)
+                }}
+                autoFocus
+              />
+              <div className={styles.sliderRow}>
+                <span className={styles.sectionTitle}>Agents</span>
+                <input
+                  className={styles.slider}
+                  type="range"
+                  min={2}
+                  max={8}
+                  value={agentCount}
+                  onChange={e => setAgentCount(Number(e.target.value))}
+                />
+                <span className={styles.sliderVal}>{agentCount}</span>
+              </div>
+            </div>
+            <div className={styles.modalFooter}>
+              <button className={styles.newCancel} onClick={() => setShowModal(false)}>Cancel</button>
+              <button
+                className={styles.launchBtn}
+                onClick={handleLaunch}
+                disabled={!goalText.trim()}
+              >
+                Launch Swarm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Sidebar */}
       <aside className={styles.sidebar}>
         <div className={styles.sidebarHeader}>
           <span className={styles.sidebarTitle}>Sessions</span>
           <button
             className={styles.newBtn}
-            onClick={() => setShowNewForm(v => !v)}
+            onClick={() => setShowModal(true)}
             title="New session"
           >
             +
           </button>
         </div>
-
-        {showNewForm && (
-          <div className={styles.newForm}>
-            <input
-              className={styles.newInput}
-              placeholder="Session name…"
-              value={newName}
-              onChange={e => setNewName(e.target.value)}
-              onKeyDown={e => {
-                if (e.key === 'Enter') handleNewSession()
-                if (e.key === 'Escape') setShowNewForm(false)
-              }}
-              autoFocus
-            />
-            <div className={styles.newActions}>
-              <button className={styles.newConfirm} onClick={handleNewSession}>Start</button>
-              <button className={styles.newCancel} onClick={() => setShowNewForm(false)}>Cancel</button>
-            </div>
-          </div>
-        )}
 
         <div className={styles.sessionList}>
           {sessions.length === 0 ? (
@@ -183,7 +205,7 @@ export function SwarmPanel() {
             <div className={styles.emptyIcon}>⚡</div>
             <div className={styles.emptyTitle}>No session selected</div>
             <div className={styles.emptyText}>Create a new swarm session to get started</div>
-            <button className={styles.emptyBtn} onClick={() => setShowNewForm(true)}>
+            <button className={styles.emptyBtn} onClick={() => setShowModal(true)}>
               New Session
             </button>
           </div>
@@ -238,6 +260,18 @@ export function SwarmPanel() {
                 />
               </div>
             </div>
+
+            {/* Recent output */}
+            {selectedSession.state.messages.length > 0 && (
+              <div className={styles.section}>
+                <div className={styles.sectionTitle}>Recent Output ({selectedSession.state.messages.length} messages)</div>
+                <div className={styles.messageLog}>
+                  {selectedSession.state.messages.slice(-3).map((msg, i) => (
+                    <div key={i} className={styles.messageItem}>{msg.slice(0, 200)}{msg.length > 200 ? '…' : ''}</div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Agent roster */}
             <div className={styles.section}>

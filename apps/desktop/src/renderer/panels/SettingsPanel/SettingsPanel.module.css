@@ -376,3 +376,56 @@
   font-size: var(--font-size-sm, 12px);
   font-style: italic;
 }
+
+/* ─── Test Key Button ─── */
+
+.testKeyBtn {
+  padding: var(--space-2, 8px) var(--space-3, 12px);
+  background: transparent;
+  border: 1px solid var(--color-border-hover, #2a2a2a);
+  border-radius: var(--radius-md, 6px);
+  color: var(--color-text-secondary, #999);
+  font-size: var(--font-size-sm, 12px);
+  font-weight: var(--font-weight-medium, 500);
+  white-space: nowrap;
+  transition: background var(--transition-fast, 80ms), color var(--transition-fast, 80ms), border-color var(--transition-fast, 80ms);
+  flex-shrink: 0;
+}
+
+.testKeyBtn:hover:not(:disabled) {
+  background: var(--color-surface-2, #1a1a1a);
+  border-color: var(--color-text-muted);
+  color: var(--color-text);
+}
+
+.testKeyBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.testKeyBtnOk {
+  background: var(--color-green-muted, rgba(34,197,94,0.15));
+  border-color: rgba(34, 197, 94, 0.3);
+  color: var(--color-green, #22c55e);
+}
+
+.testKeyBtnFail {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #ef4444;
+}
+
+/* ─── Model Count Badge ─── */
+
+.modelCountBadge {
+  font-size: 11px;
+  color: var(--color-green, #22c55e);
+  margin-top: 4px;
+  padding: 2px var(--space-2, 8px);
+  background: var(--color-green-muted, rgba(34,197,94,0.1));
+  border: 1px solid rgba(34, 197, 94, 0.2);
+  border-radius: 999px;
+  display: inline-block;
+  width: fit-content;
+  font-weight: var(--font-weight-medium, 500);
+}

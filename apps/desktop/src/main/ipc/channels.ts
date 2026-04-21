@@ -34,6 +34,7 @@ export const channels: HandlerMap = {
   'models:list': stub,
   'models:getConfig': stub,
   'models:streamChat': stub,
+  'model:validate': stub,
 
   // settings
   'settings:get': stub,
