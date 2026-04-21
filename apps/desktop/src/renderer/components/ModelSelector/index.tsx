@@ -10,6 +10,7 @@ const PROVIDER_LABELS: Record<ModelProvider, string> = {
   mistral: 'Mistral',
   cohere: 'Cohere',
   local: 'Local',
+  openrouter: 'OpenRouter',
   custom: 'Custom',
 }
 

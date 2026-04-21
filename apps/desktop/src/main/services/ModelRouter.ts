@@ -44,6 +44,7 @@ const MODEL_IDS: Record<ModelProvider, ModelId[]> = {
     'claude-haiku-4-5-20251001',
   ],
   [ModelProvider.LOCAL]: ['llama3', 'mistral', 'codellama'],
+  [ModelProvider.OPENROUTER]: ['openai/gpt-4o', 'anthropic/claude-sonnet-4-6', 'meta-llama/llama-3.1-8b-instruct:free'],
   [ModelProvider.GOOGLE]: [],
   [ModelProvider.MISTRAL]: [],
   [ModelProvider.COHERE]: [],
@@ -171,6 +172,34 @@ const KNOWN_MODELS: ModelConfig[] = [
     maxTokens: 4_096,
     baseUrl: 'http://localhost:11434',
   },
+  // OpenRouter
+  {
+    id: 'openai/gpt-4o',
+    provider: ModelProvider.OPENROUTER,
+    name: 'GPT-4o (via OpenRouter)',
+    capabilities: [ModelCapability.CHAT, ModelCapability.VISION, ModelCapability.FUNCTION_CALLING, ModelCapability.STREAMING],
+    contextWindow: 128_000,
+    maxTokens: 4_096,
+    baseUrl: 'https://openrouter.ai/api/v1',
+  },
+  {
+    id: 'anthropic/claude-sonnet-4-6',
+    provider: ModelProvider.OPENROUTER,
+    name: 'Claude Sonnet 4.6 (via OpenRouter)',
+    capabilities: [ModelCapability.CHAT, ModelCapability.STREAMING],
+    contextWindow: 200_000,
+    maxTokens: 8_192,
+    baseUrl: 'https://openrouter.ai/api/v1',
+  },
+  {
+    id: 'meta-llama/llama-3.1-8b-instruct:free',
+    provider: ModelProvider.OPENROUTER,
+    name: 'Llama 3.1 8B (Free, via OpenRouter)',
+    capabilities: [ModelCapability.CHAT, ModelCapability.STREAMING],
+    contextWindow: 131_072,
+    maxTokens: 2_048,
+    baseUrl: 'https://openrouter.ai/api/v1',
+  },
 ]
 
 // ---------------------------------------------------------------------------
@@ -191,7 +220,25 @@ export class ModelRouter {
   // -------------------------------------------------------------------------
 
   async listModels(provider: ModelProvider): Promise<ModelId[]> {
+    if (provider === ModelProvider.OPENROUTER) {
+      return this._listOpenRouterModels()
+    }
     return MODEL_IDS[provider] ?? []
+  }
+
+  private async _listOpenRouterModels(): Promise<ModelId[]> {
+    const key = await this.keychain.getApiKey('openrouter')
+    if (!key) return MODEL_IDS[ModelProvider.OPENROUTER]
+    try {
+      const response = await fetch('https://openrouter.ai/api/v1/models', {
+        headers: { Authorization: `Bearer ${key}` },
+      })
+      if (!response.ok) return MODEL_IDS[ModelProvider.OPENROUTER]
+      const data = await response.json() as { data: Array<{ id: string }> }
+      return data.data.map(m => m.id)
+    } catch {
+      return MODEL_IDS[ModelProvider.OPENROUTER]
+    }
   }
 
   // -------------------------------------------------------------------------
@@ -199,8 +246,19 @@ export class ModelRouter {
   // -------------------------------------------------------------------------
 
   async validateKey(provider: ModelProvider): Promise<boolean> {
-    const key = await this.keychain.getApiKey(provider)
-    return key !== null && key.length > 0
+    const key = await this.keychain.getApiKey(provider === ModelProvider.OPENROUTER ? 'openrouter' : provider)
+    if (!key || key.length === 0) return false
+    if (provider === ModelProvider.OPENROUTER) {
+      try {
+        const response = await fetch('https://openrouter.ai/api/v1/auth/key', {
+          headers: { Authorization: `Bearer ${key}` },
+        })
+        return response.ok
+      } catch {
+        return false
+      }
+    }
+    return true
   }
 
   // -------------------------------------------------------------------------
@@ -222,6 +280,9 @@ export class ModelRouter {
         break
       case ModelProvider.LOCAL:
         yield* this._routeLocal(config, messages)
+        break
+      case ModelProvider.OPENROUTER:
+        yield* this._routeOpenRouter(config, messages, apiKey)
         break
       default:
         yield {
@@ -504,6 +565,94 @@ export class ModelRouter {
       }
     } catch (err) {
       console.error('[ModelRouter] Ollama stream error:', err)
+      yield _errorChunk(config.id, String(err))
+    }
+  }
+
+  private async *_routeOpenRouter(
+    config: ModelConfig,
+    messages: AgentMessage[],
+    apiKey: string | null,
+  ): AsyncGenerator<StreamChunk> {
+    const baseUrl = config.baseUrl ?? 'https://openrouter.ai/api/v1'
+    const openAIMessages = messages.map((m) => ({ role: m.role, content: m.content }))
+
+    let response: Response
+    try {
+      response = await fetch(`${baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey ?? ''}`,
+          'HTTP-Referer': 'https://nexusmind.app',
+          'X-Title': 'NexusMind',
+        },
+        body: JSON.stringify({
+          model: config.id,
+          messages: openAIMessages,
+          stream: true,
+          max_tokens: config.maxTokens,
+          temperature: config.temperature,
+          top_p: config.topP,
+        }),
+      })
+    } catch (err) {
+      console.error('[ModelRouter] OpenRouter fetch error:', err)
+      yield _errorChunk(config.id, String(err))
+      return
+    }
+
+    if (!response.ok) {
+      const text = await response.text().catch(() => response.statusText)
+      console.error('[ModelRouter] OpenRouter API error:', response.status, text)
+      if (response.status === 401) {
+        yield _errorChunk(config.id, `OpenRouter auth error: invalid API key`)
+      } else {
+        yield _errorChunk(config.id, `OpenRouter API error ${response.status}: ${text}`)
+      }
+      return
+    }
+
+    // Parse identical to OpenAI SSE stream
+    let index = 0
+    try {
+      for await (const raw of parseSSE(response)) {
+        let parsed: any
+        try {
+          parsed = JSON.parse(raw)
+        } catch {
+          continue
+        }
+
+        const choice = parsed.choices?.[0]
+        if (!choice) continue
+
+        const delta: string = choice.delta?.content ?? ''
+        const finishReason: string | undefined = choice.finish_reason ?? undefined
+        const isDone = finishReason != null
+
+        const chunk: StreamChunk = {
+          id: parsed.id ?? randomUUID(),
+          modelId: config.id,
+          content: delta,
+          index: index++,
+          isDone,
+          finishReason,
+        }
+
+        if (parsed.usage) {
+          chunk.usage = {
+            promptTokens: parsed.usage.prompt_tokens ?? 0,
+            completionTokens: parsed.usage.completion_tokens ?? 0,
+            totalTokens: parsed.usage.total_tokens ?? 0,
+          }
+        }
+
+        yield chunk
+        if (isDone) break
+      }
+    } catch (err) {
+      console.error('[ModelRouter] OpenRouter stream error:', err)
       yield _errorChunk(config.id, String(err))
     }
   }

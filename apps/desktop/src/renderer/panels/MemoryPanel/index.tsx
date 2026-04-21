@@ -170,29 +170,31 @@ export function MemoryPanel() {
 
                 {isExpanded && (
                   <div className={styles.cardDetails}>
-                    {entry.importance > 0 && (
+                    {((entry as any).importance ?? 0) > 0 && (
                       <div className={styles.detailRow}>
                         <span className={styles.detailKey}>Importance</span>
                         <div className={styles.importanceBar}>
                           <div
                             className={styles.importanceFill}
-                            style={{ width: `${entry.importance * 100}%` }}
+                            style={{ width: `${((entry as any).importance ?? 0) * 100}%` }}
                           />
                         </div>
-                        <span className={styles.detailVal}>{(entry.importance * 100).toFixed(0)}%</span>
+                        <span className={styles.detailVal}>{(((entry as any).importance ?? 0) * 100).toFixed(0)}%</span>
                       </div>
                     )}
-                    {entry.agentId && (
+                    {(entry.agentId || (entry as any).source) && (
                       <div className={styles.detailRow}>
                         <span className={styles.detailKey}>Agent</span>
-                        <span className={`${styles.detailVal} ${styles.mono}`}>{entry.agentId.slice(0, 12)}</span>
+                        <span className={`${styles.detailVal} ${styles.mono}`}>
+                          {(entry.agentId || ((entry as any).source ?? '')).slice(0, 12)}
+                        </span>
                       </div>
                     )}
-                    {entry.tags.length > 0 && (
+                    {(entry.tags ?? []).length > 0 && (
                       <div className={styles.detailRow}>
                         <span className={styles.detailKey}>Tags</span>
                         <div className={styles.tagList}>
-                          {entry.tags.map(tag => (
+                          {(entry.tags ?? []).map(tag => (
                             <span key={tag} className={styles.tag}>{tag}</span>
                           ))}
                         </div>

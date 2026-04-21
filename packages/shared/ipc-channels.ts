@@ -89,6 +89,7 @@ export interface IpcEvents {
   'mcp:callTool': (call: MCPToolCall) => MCPToolResult
   'mcp:addServer': (config: MCPServerConfig) => MCPServerConfig
   'mcp:removeServer': (serverId: MCPServerId) => void
+  'mcp:executeTool': (payload: { name: string; args: Record<string, unknown> }) => unknown
 
   // memory
   'memory:search': (payload: { query: string; type?: MemoryType }) => MemorySearchResult[]

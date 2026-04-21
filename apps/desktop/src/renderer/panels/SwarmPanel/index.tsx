@@ -262,16 +262,35 @@ export function SwarmPanel() {
             </div>
 
             {/* Recent output */}
-            {selectedSession.state.messages.length > 0 && (
-              <div className={styles.section}>
-                <div className={styles.sectionTitle}>Recent Output ({selectedSession.state.messages.length} messages)</div>
-                <div className={styles.messageLog}>
-                  {selectedSession.state.messages.slice(-3).map((msg, i) => (
-                    <div key={i} className={styles.messageItem}>{msg.slice(0, 200)}{msg.length > 200 ? '…' : ''}</div>
-                  ))}
+            {selectedSession.state.messages.length > 0 && (() => {
+              const allMessages = selectedSession.state.messages
+              const toolCount = allMessages.filter(m => m.includes('[Tool:')).length
+              return (
+                <div className={styles.section}>
+                  <div className={styles.sectionTitle}>
+                    Recent Output ({allMessages.length} messages)
+                    {toolCount > 0 && (
+                      <span className={styles.toolCountBadge}>🔧 {toolCount} tool{toolCount !== 1 ? 's' : ''} used</span>
+                    )}
+                  </div>
+                  <div className={styles.messageLog}>
+                    {allMessages.slice(-5).map((msg, i) => {
+                      const isToolCall = msg.startsWith('[Tool:')
+                      const display = msg.slice(0, 200) + (msg.length > 200 ? '…' : '')
+                      return (
+                        <div
+                          key={i}
+                          className={`${styles.messageItem} ${isToolCall ? styles.messageItemTool : ''}`}
+                        >
+                          {isToolCall && <span className={styles.toolIcon}>🔧 </span>}
+                          {display}
+                        </div>
+                      )
+                    })}
+                  </div>
                 </div>
-              </div>
-            )}
+              )
+            })()}
 
             {/* Agent roster */}
             <div className={styles.section}>

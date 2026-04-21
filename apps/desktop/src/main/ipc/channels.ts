@@ -51,6 +51,7 @@ export const channels: HandlerMap = {
   'mcp:callTool': stub,
   'mcp:addServer': stub,
   'mcp:removeServer': stub,
+  'mcp:executeTool': stub,
 
   // memory
   'memory:search': stub,

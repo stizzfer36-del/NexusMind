@@ -282,6 +282,38 @@ export class SwarmService {
         continue
       }
 
+      // --- Tool call parsing ---
+      // Scan response for ```tool\n{...}\n``` blocks
+      const toolResults: string[] = []
+      const TOOL_PATTERN = /```tool\s*\n(\{[\s\S]*?\})\s*\n```/g
+      let toolMatch: RegExpExecArray | null
+
+      let mcpService: any = null
+      try {
+        mcpService = registry.resolve<any>(SERVICE_TOKENS.MCPService)
+      } catch {
+        // MCPService not available — skip tool execution
+      }
+
+      if (mcpService) {
+        while ((toolMatch = TOOL_PATTERN.exec(response)) !== null) {
+          const rawJson = toolMatch[1]
+          try {
+            const call = JSON.parse(rawJson) as { name: string; args: Record<string, unknown> }
+            if (typeof call.name === 'string' && call.args && typeof call.args === 'object') {
+              console.log(`[SwarmService] Agent ${agentId} (${role}) — executing tool: ${call.name}`)
+              const result = await mcpService.executeTool(call.name, call.args)
+              const resultStr = `[Tool: ${call.name}] Result: ${JSON.stringify(result).slice(0, 500)}`
+              toolResults.push(resultStr)
+              console.log(`[SwarmService] ${resultStr}`)
+            }
+          } catch (err) {
+            console.error(`[SwarmService] Tool call failed:`, err)
+            toolResults.push(`[Tool: error] ${String(err).slice(0, 200)}`)
+          }
+        }
+      }
+
       // Mark task complete in kanban
       try {
         kanban.updateTask(task.id, { column: 'done', assignee: agentId })
@@ -289,19 +321,26 @@ export class SwarmService {
         console.warn(`[SwarmService] updateTask failed for task ${task.id}:`, err)
       }
 
-      // Persist to memory
+      // Persist to memory — include tool results if any
       try {
+        const fullContent = toolResults.length > 0
+          ? `${response}\n\nTools used:\n${toolResults.join('\n')}`
+          : response
         memory.store({
           type: 'episodic',
-          content: response,
+          content: fullContent,
           source: agentId,
         })
       } catch (err) {
         console.warn(`[SwarmService] memory.store failed for agent ${agentId}:`, err)
       }
 
-      // Push the response (truncated) into the session message log
-      const truncated = response.length > 500 ? `${response.slice(0, 500)}…` : response
+      // Push the response + tool results (truncated) into the session message log
+      let fullOutput = response
+      if (toolResults.length > 0) {
+        fullOutput += '\n' + toolResults.join('\n')
+      }
+      const truncated = fullOutput.length > 500 ? `${fullOutput.slice(0, 500)}…` : fullOutput
       session.state.messages.push(truncated)
       session.state.currentRound += 1
       session.updatedAt = Date.now()

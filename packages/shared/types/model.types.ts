@@ -5,6 +5,7 @@ export enum ModelProvider {
   MISTRAL = 'mistral',
   COHERE = 'cohere',
   LOCAL = 'local',
+  OPENROUTER = 'openrouter',
   CUSTOM = 'custom'
 }
 

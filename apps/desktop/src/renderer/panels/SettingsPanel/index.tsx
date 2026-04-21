@@ -34,6 +34,7 @@ interface ApiKeyField {
 const API_KEY_FIELDS: ApiKeyField[] = [
   { provider: 'openai', label: 'OpenAI API Key', placeholder: 'sk-...' },
   { provider: 'anthropic', label: 'Anthropic API Key', placeholder: 'sk-ant-...' },
+  { provider: 'openrouter', label: 'OpenRouter API Key', placeholder: 'sk-or-...' },
   { provider: 'ollama', label: 'Ollama Base URL', placeholder: 'http://localhost:11434' },
 ]
 

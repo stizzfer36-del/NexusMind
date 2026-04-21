@@ -37,3 +37,14 @@ export interface MCPServerConfig {
   url?: string
   timeoutMs: number
 }
+
+export interface MCPToolInfo {
+  name: string
+  description: string
+  inputSchema?: Record<string, unknown>
+}
+
+export type MCPToolExecutePayload = {
+  name: string
+  args: Record<string, unknown>
+}
