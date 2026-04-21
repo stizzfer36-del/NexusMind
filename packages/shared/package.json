@@ -9,6 +9,10 @@
     ".": {
       "types": "./types/index.ts",
       "default": "./types/index.ts"
+    },
+    "./ipc-channels": {
+      "types": "./ipc-channels.ts",
+      "default": "./ipc-channels.ts"
     }
   },
   "scripts": {

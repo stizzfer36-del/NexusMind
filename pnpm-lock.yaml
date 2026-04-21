@@ -26,6 +26,9 @@ importers:
 
   apps/desktop:
     dependencies:
+      '@nexusmind/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       electron:
         specifier: ^33.0.0
         version: 33.4.11
