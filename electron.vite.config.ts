@@ -7,14 +7,17 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin()],
+    plugins: [externalizeDepsPlugin({ exclude: ['better-sqlite3', 'keytar', 'node-pty'] })],
     build: {
       lib: {
         entry: path.resolve(__dirname, 'apps/desktop/src/main/index.ts'),
         formats: ['cjs'],
         fileName: () => '[name].js'
       },
-      outDir: path.resolve(__dirname, 'apps/desktop/out/main')
+      outDir: path.resolve(__dirname, 'apps/desktop/out/main'),
+      rollupOptions: {
+        external: ['better-sqlite3', 'keytar', 'node-pty'],
+      },
     },
     resolve: {
       alias: {

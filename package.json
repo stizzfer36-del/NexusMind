@@ -5,7 +5,7 @@
   "type": "module",
   "main": "apps/desktop/out/main/index.cjs",
   "scripts": {
-    "dev": "electron-vite dev",
+    "dev": "env -u ELECTRON_RUN_AS_NODE electron-vite dev",
     "build": "electron-vite build"
   },
   "devDependencies": {
