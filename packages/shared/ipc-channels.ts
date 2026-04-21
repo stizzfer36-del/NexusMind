@@ -1,6 +1,10 @@
 import type {
   AgentMessage,
+  BenchDimension,
   BenchReport,
+  BenchRunConfig,
+  BenchRunResult,
+  BenchTask,
   GuardFinding,
   GuardScanResult,
   MCPServerConfig,
@@ -117,6 +121,11 @@ export interface IpcEvents {
   // bench
   'bench:run': (reportId: string) => BenchReport
   'bench:getReport': (reportId: string) => BenchReport
+  'bench:listTasks': (dimension?: BenchDimension) => BenchTask[]
+  'bench:listModels': () => Array<{ id: string; provider: string; name: string }>
+  'bench:runTask': (taskId: string, config: BenchRunConfig) => BenchRunResult
+  'bench:runBatch': (taskIds: string[], config: BenchRunConfig) => BenchRunResult[]
+  'bench:listRuns': (filters?: { dimension?: BenchDimension; modelId?: string }) => BenchRunResult[]
 }
 
 // ---------------------------------------------------------------------------

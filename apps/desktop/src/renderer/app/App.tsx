@@ -11,6 +11,7 @@ import { SwarmPanel } from '../panels/SwarmPanel'
 import { SettingsPanel } from '../panels/SettingsPanel'
 import { MemoryPanel } from '../panels/MemoryPanel'
 import { ReplayPanel } from '../panels/ReplayPanel'
+import { BenchPanel } from '../panels/BenchPanel'
 import { OnboardingPanel } from '../panels/OnboardingPanel'
 
 const PANELS: Record<Route, React.ReactNode> = {
@@ -20,18 +21,7 @@ const PANELS: Record<Route, React.ReactNode> = {
   memory: <MemoryPanel />,
   replay: <ReplayPanel />,
   settings: <SettingsPanel />,
-  bench: (
-    <div style={{
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      height: '100%',
-      color: '#666',
-      fontSize: '13px',
-    }}>
-      Benchmark suite coming soon
-    </div>
-  ),
+  bench: <BenchPanel />,
 }
 
 function AppContent() {

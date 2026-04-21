@@ -14,6 +14,7 @@ import { SwarmService } from './services/SwarmService.js'
 import { MemoryService } from './services/MemoryService.js'
 import { MCPService } from './services/MCPService.js'
 import { EventRecorder } from './services/EventRecorder.js'
+import { BenchService } from './services/BenchService.js'
 
 async function safeInit(name: string, fn: () => void | Promise<void>): Promise<void> {
   try {
@@ -54,6 +55,9 @@ async function bootstrap(): Promise<void> {
   const eventRecorder = new EventRecorder()
   await safeInit('EventRecorder', () => eventRecorder.init())
 
+  const bench = new BenchService()
+  await safeInit('BenchService', () => bench.init())
+
   const router = new IPCRouter()
   const allHandlers: Record<string, any> = {
     ...channels,
@@ -67,6 +71,7 @@ async function bootstrap(): Promise<void> {
     ...memory.getHandlers(),
     ...mcp.getHandlers(),
     ...eventRecorder.getHandlers(),
+    ...bench.getHandlers(),
   }
   router.registerAll(allHandlers)
 

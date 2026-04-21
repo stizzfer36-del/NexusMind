@@ -79,4 +79,9 @@ export const channels: HandlerMap = {
   // bench
   'bench:run': stub,
   'bench:getReport': stub,
+  'bench:listTasks': stub,
+  'bench:listModels': stub,
+  'bench:runTask': stub,
+  'bench:runBatch': stub,
+  'bench:listRuns': stub,
 }
