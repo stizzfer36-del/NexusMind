@@ -557,3 +557,60 @@
 .toolIcon {
   margin-right: 2px;
 }
+
+/* ─── Graph Flow ─── */
+
+.graphFlow {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 0;
+}
+
+.graphFlowRow {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.graphNode {
+  padding: 3px 10px;
+  border-radius: 20px;
+  border: 1px solid var(--color-border, rgba(255,255,255,0.15));
+  font-size: 11px;
+  color: var(--color-fg-muted, rgba(255,255,255,0.5));
+  background: transparent;
+  transition: all 0.2s;
+}
+
+.graphNodeActive {
+  border-color: var(--color-accent, #7c6af7);
+  color: var(--color-accent, #7c6af7);
+  box-shadow: 0 0 8px rgba(124, 106, 247, 0.4);
+  animation: nodeGlow 1.5s ease-in-out infinite alternate;
+}
+
+.graphEdge {
+  font-size: 11px;
+  color: var(--color-fg-muted, rgba(255,255,255,0.3));
+}
+
+.graphBackEdges {
+  display: flex;
+  flex-direction: row;
+  gap: 12px;
+  padding-left: 4px;
+}
+
+.graphBackEdge {
+  font-size: 10px;
+  color: var(--color-yellow, #f59e0b);
+  opacity: 0.7;
+}
+
+@keyframes nodeGlow {
+  from { box-shadow: 0 0 4px rgba(124, 106, 247, 0.3); }
+  to   { box-shadow: 0 0 14px rgba(124, 106, 247, 0.7); }
+}

@@ -6,6 +6,7 @@ import type { ModelConfig, StreamChunk, AgentMessage } from '@nexusmind/shared'
 import type { KanbanService } from './KanbanService.js'
 import type { ModelRouter } from './ModelRouter.js'
 import type { MemoryService } from './MemoryService.js'
+import { SwarmGraph, type AgentGraphState } from './SwarmGraph.js'
 
 // ---------------------------------------------------------------------------
 // Local type definitions (do not import from @nexusmind/shared)
@@ -149,59 +150,100 @@ export class SwarmService {
     }
 
     const registry = ServiceRegistry.getInstance()
+    this.cancelFlags.set(id, false)
 
-    // --- Phase 1: ORCHESTRATING ---
+    // Phase 1: ORCHESTRATING
     session.state.status = SwarmStatus.ORCHESTRATING
     session.state.currentRound = 0
     session.state.consensusReached = false
     session.updatedAt = Date.now()
     this.push('swarm:update', { id, state: session.state })
-    console.log(`[SwarmService] Session ${id} — orchestrating (${session.config.maxAgents} agents)`)
+    console.log(`[SwarmService] Session ${id} — orchestrating`)
 
-    // Assign agent IDs, cycling through roles
-    const agentCount = Math.max(1, session.config.maxAgents)
-    const agentIds: string[] = Array.from({ length: agentCount }, () => crypto.randomUUID())
-    session.state.agentIds = agentIds
+    // Assign one agentId per role
+    const agentIds: Record<AgentRole, string> = {
+      coordinator: crypto.randomUUID(),
+      builder: crypto.randomUUID(),
+      reviewer: crypto.randomUUID(),
+      tester: crypto.randomUUID(),
+      docwriter: crypto.randomUUID(),
+    }
+    session.state.agentIds = Object.values(agentIds)
     session.updatedAt = Date.now()
 
-    // Reset cancel flag
-    this.cancelFlags.set(id, false)
-
-    // Create initial kanban tasks for this session
+    // Seed kanban tasks
     try {
       const kanban = registry.resolve<KanbanService>(SERVICE_TOKENS.KanbanService)
-      const sessionName = session.name
       ;(kanban as any).bulkCreate([
-        { title: `Plan: ${sessionName}`,      description: `Planning phase for session: ${sessionName}`,      column: 'backlog', priority: 'medium' },
-        { title: `Implement: ${sessionName}`, description: `Implementation phase for session: ${sessionName}`, column: 'backlog', priority: 'medium' },
-        { title: `Review: ${sessionName}`,    description: `Review phase for session: ${sessionName}`,         column: 'backlog', priority: 'medium' },
+        { title: `Plan: ${session.name}`,      description: `Planning phase for session: ${session.name}`,      column: 'backlog', priority: 'medium' },
+        { title: `Implement: ${session.name}`, description: `Implementation phase for session: ${session.name}`, column: 'backlog', priority: 'medium' },
+        { title: `Review: ${session.name}`,    description: `Review phase for session: ${session.name}`,         column: 'backlog', priority: 'medium' },
       ])
     } catch (err) {
-      console.warn('[SwarmService] bulkCreate failed (KanbanService may not support it yet):', err)
+      console.warn('[SwarmService] bulkCreate failed:', err)
     }
 
-    // --- Phase 2: EXECUTING ---
+    // Phase 2: EXECUTING
     session.state.status = SwarmStatus.EXECUTING
     session.updatedAt = Date.now()
     this.push('swarm:update', { id, state: session.state })
-    console.log(`[SwarmService] Session ${id} — executing`)
 
-    // Spin up per-agent loops concurrently
-    const modelConfig: ModelConfig = { ...DEFAULT_MODEL_CONFIG }
-
-    try {
-      await Promise.all(
-        agentIds.map((agentId, i) => {
-          const role = AGENT_ROLES[i % AGENT_ROLES.length]
-          return this.runAgent(id, agentId, role, modelConfig)
-        }),
-      )
-    } catch (err) {
-      console.error(`[SwarmService] Session ${id} — unexpected error in agent pool:`, err)
-      // Don't rethrow; still mark completed so UI doesn't hang
+    // Build initial graph state
+    const initialGraphState: AgentGraphState = {
+      sessionId: id,
+      goal: session.name,
+      tasks: [],
+      agentOutputs: [],
+      reviewPassed: false,
+      testPassed: false,
+      currentRound: 0,
+      maxRounds: session.config.maxRounds,
+      cancelled: false,
+      toolResults: [],
     }
 
-    // --- Phase 3: COMPLETED ---
+    // Build the graph
+    const graph = new SwarmGraph<AgentGraphState>()
+
+    // Add nodes — each calls executeAgentRole for its role
+    const roles: AgentRole[] = ['coordinator', 'builder', 'reviewer', 'tester', 'docwriter']
+    for (const role of roles) {
+      const agentId = agentIds[role]
+      graph.addNode({
+        id: role,
+        execute: (state) => this.executeAgentRole(role, state, agentId),
+      })
+    }
+
+    // Add END node (no-op)
+    graph.addNode({ id: 'END', execute: async (state) => state })
+
+    // Edges
+    graph.addEdge({ from: 'coordinator', to: 'builder' })
+    graph.addEdge({ from: 'builder', to: 'reviewer' })
+    graph.addEdge({ from: 'reviewer', to: 'builder', condition: (s) => !s.reviewPassed && s.currentRound < s.maxRounds })
+    graph.addEdge({ from: 'reviewer', to: 'tester', condition: (s) => s.reviewPassed })
+    graph.addEdge({ from: 'tester', to: 'builder', condition: (s) => !s.testPassed && s.currentRound < s.maxRounds })
+    graph.addEdge({ from: 'tester', to: 'docwriter', condition: (s) => s.testPassed })
+    graph.addEdge({ from: 'docwriter', to: 'END' })
+
+    graph.setEntry('coordinator')
+    graph.setEnd(['END'])
+
+    // State change callback — update session state and push to renderer
+    const onStateChange = (graphState: AgentGraphState, nodeId: string) => {
+      session.state.currentRound = graphState.currentRound
+      session.updatedAt = Date.now()
+      this.push('swarm:update', { id, state: session.state, activeNode: nodeId })
+    }
+
+    try {
+      await graph.run(initialGraphState, onStateChange)
+    } catch (err) {
+      console.error(`[SwarmService] Session ${id} — graph error:`, err)
+    }
+
+    // Phase 3: COMPLETED
     if (!this.cancelFlags.get(id)) {
       session.state.status = SwarmStatus.COMPLETED
       session.state.consensusReached = true
@@ -212,153 +254,171 @@ export class SwarmService {
   }
 
   // -------------------------------------------------------------------------
-  // runAgent — per-agent task loop
+  // executeAgentRole — single graph node execution for a given role
   // -------------------------------------------------------------------------
 
-  private async runAgent(
-    sessionId: string,
-    agentId: string,
+  private async executeAgentRole(
     role: AgentRole,
-    modelConfig: ModelConfig,
-  ): Promise<void> {
+    state: AgentGraphState,
+    agentId: string,
+  ): Promise<AgentGraphState> {
+    // Check cancellation first
+    if (state.cancelled) return state
+
     const registry = ServiceRegistry.getInstance()
-    const session = this.sessions.get(sessionId)
-    if (!session) return
 
-    const maxRounds = session.config.maxRounds
+    // Resolve required services
+    let kanban: KanbanService
+    let modelRouter: ModelRouter
+    let memory: MemoryService
+    try {
+      kanban      = registry.resolve<KanbanService>(SERVICE_TOKENS.KanbanService)
+      modelRouter = registry.resolve<ModelRouter>(SERVICE_TOKENS.ModelRouter)
+      memory      = registry.resolve<MemoryService>(SERVICE_TOKENS.MemoryService)
+    } catch (err) {
+      console.error(`[SwarmService] executeAgentRole(${role}) — failed to resolve services:`, err)
+      return state
+    }
 
-    for (let round = 0; round < maxRounds; round++) {
-      // Check for cancellation before each task
-      if (this.cancelFlags.get(sessionId)) {
-        console.log(`[SwarmService] Agent ${agentId} (${role}) — cancelled`)
-        return
+    // Get next task for this role
+    const task = (kanban as any).getNextTask(role) as { id: string; title: string; description: string } | null
+    if (!task) {
+      if (role === 'reviewer') {
+        state.reviewPassed = true
+        return state
       }
-
-      // Lazily resolve services on each iteration (safe after init order)
-      let kanban: KanbanService
-      let modelRouter: ModelRouter
-      let memory: MemoryService
-      try {
-        kanban      = registry.resolve<KanbanService>(SERVICE_TOKENS.KanbanService)
-        modelRouter = registry.resolve<ModelRouter>(SERVICE_TOKENS.ModelRouter)
-        memory      = registry.resolve<MemoryService>(SERVICE_TOKENS.MemoryService)
-      } catch (err) {
-        console.error(`[SwarmService] Agent ${agentId} — failed to resolve services:`, err)
-        return
+      if (role === 'tester') {
+        state.testPassed = true
+        return state
       }
+      return state
+    }
 
-      // Get the next available task for this role
-      const task = (kanban as any).getNextTask(role) as { id: string; title: string; description: string } | null
-      if (!task) {
-        // No more tasks for this role — agent is done
-        console.log(`[SwarmService] Agent ${agentId} (${role}) — no more tasks, stopping`)
-        break
-      }
+    // Assign task to this agent
+    try {
+      ;(kanban as any).assignToAgent(task.id, agentId)
+    } catch (err) {
+      console.warn(`[SwarmService] assignToAgent failed for task ${task.id}:`, err)
+    }
 
-      // Assign task to this agent
-      try {
-        ;(kanban as any).assignToAgent(task.id, agentId)
-      } catch (err) {
-        console.warn(`[SwarmService] assignToAgent failed for task ${task.id}:`, err)
-      }
+    // Build messages array with system prompt + task content
+    const systemPrompt = ROLE_PROMPTS[role] ?? ''
+    const messages: AgentMessage[] = [
+      {
+        id: crypto.randomUUID(),
+        agentId,
+        role: 'user' as any,
+        content: `${systemPrompt}\n\nTask: ${task.title}\n\n${task.description ?? ''}`,
+        timestamp: Date.now(),
+      },
+    ]
 
-      // Build the message to send to the model
-      const systemPrompt = ROLE_PROMPTS[role] ?? ''
-      const messages: AgentMessage[] = [
-        {
-          id: crypto.randomUUID(),
-          agentId,
-          role: 'user' as any,
-          content: `${systemPrompt}\n\nTask: ${task.title}\n\n${task.description ?? ''}`,
-          timestamp: Date.now(),
-        },
-      ]
-
-      // Stream response from model router, accumulating full content
-      let response = ''
-      try {
-        for await (const chunk of modelRouter.route(modelConfig, messages)) {
-          if (chunk.content) {
-            response += chunk.content
-          }
-          if (chunk.isDone) break
+    // Stream from modelRouter, accumulate response string
+    let response = ''
+    try {
+      for await (const chunk of modelRouter.route(DEFAULT_MODEL_CONFIG, messages)) {
+        if (chunk.content) {
+          response += chunk.content
         }
-      } catch (err) {
-        console.error(`[SwarmService] Agent ${agentId} (${role}) — model error on task "${task.title}":`, err)
-        // Continue to next task — resilient loop
-        await this._delay(500)
-        continue
+        if (chunk.isDone) break
       }
+    } catch (err) {
+      console.error(`[SwarmService] executeAgentRole(${role}) — model error on task "${task.title}":`, err)
+      await this._delay(500)
+      return state
+    }
 
-      // --- Tool call parsing ---
-      // Scan response for ```tool\n{...}\n``` blocks
-      const toolResults: string[] = []
-      const TOOL_PATTERN = /```tool\s*\n(\{[\s\S]*?\})\s*\n```/g
+    // Parse tool calls with TOOL_PATTERN regex, execute via mcpService if available
+    const TOOL_PATTERN = /```tool\s*\n(\{[\s\S]*?\})\s*\n```/g
+    const toolResults: string[] = []
+
+    let mcpService: any = null
+    try {
+      mcpService = registry.resolve<any>(SERVICE_TOKENS.MCPService)
+    } catch {
+      // MCPService not available — skip tool execution
+    }
+
+    if (mcpService) {
       let toolMatch: RegExpExecArray | null
-
-      let mcpService: any = null
-      try {
-        mcpService = registry.resolve<any>(SERVICE_TOKENS.MCPService)
-      } catch {
-        // MCPService not available — skip tool execution
-      }
-
-      if (mcpService) {
-        while ((toolMatch = TOOL_PATTERN.exec(response)) !== null) {
-          const rawJson = toolMatch[1]
-          try {
-            const call = JSON.parse(rawJson) as { name: string; args: Record<string, unknown> }
-            if (typeof call.name === 'string' && call.args && typeof call.args === 'object') {
-              console.log(`[SwarmService] Agent ${agentId} (${role}) — executing tool: ${call.name}`)
-              const result = await mcpService.executeTool(call.name, call.args)
-              const resultStr = `[Tool: ${call.name}] Result: ${JSON.stringify(result).slice(0, 500)}`
-              toolResults.push(resultStr)
-              console.log(`[SwarmService] ${resultStr}`)
-            }
-          } catch (err) {
-            console.error(`[SwarmService] Tool call failed:`, err)
-            toolResults.push(`[Tool: error] ${String(err).slice(0, 200)}`)
+      while ((toolMatch = TOOL_PATTERN.exec(response)) !== null) {
+        const rawJson = toolMatch[1]
+        try {
+          const call = JSON.parse(rawJson) as { name: string; args: Record<string, unknown> }
+          if (typeof call.name === 'string' && call.args && typeof call.args === 'object') {
+            console.log(`[SwarmService] Agent ${agentId} (${role}) — executing tool: ${call.name}`)
+            const result = await mcpService.executeTool(call.name, call.args)
+            const resultStr = `[Tool: ${call.name}] Result: ${JSON.stringify(result).slice(0, 500)}`
+            toolResults.push(resultStr)
+            console.log(`[SwarmService] ${resultStr}`)
           }
+        } catch (err) {
+          console.error(`[SwarmService] Tool call failed:`, err)
+          toolResults.push(`[Tool: error] ${String(err).slice(0, 200)}`)
         }
       }
+    }
 
-      // Mark task complete in kanban
-      try {
-        kanban.updateTask(task.id, { column: 'done', assignee: agentId })
-      } catch (err) {
-        console.warn(`[SwarmService] updateTask failed for task ${task.id}:`, err)
-      }
+    // Mark task complete in kanban
+    try {
+      kanban.updateTask(task.id, { column: 'done', assignee: agentId })
+    } catch (err) {
+      console.warn(`[SwarmService] updateTask failed for task ${task.id}:`, err)
+    }
 
-      // Persist to memory — include tool results if any
-      try {
-        const fullContent = toolResults.length > 0
-          ? `${response}\n\nTools used:\n${toolResults.join('\n')}`
-          : response
-        memory.store({
-          type: 'episodic',
-          content: fullContent,
-          source: agentId,
-        })
-      } catch (err) {
-        console.warn(`[SwarmService] memory.store failed for agent ${agentId}:`, err)
-      }
+    // Persist to memory
+    try {
+      const fullContent = toolResults.length > 0
+        ? `${response}\n\nTools used:\n${toolResults.join('\n')}`
+        : response
+      memory.store({
+        type: 'episodic',
+        content: fullContent,
+        source: `${agentId}:${role}`,
+      })
+    } catch (err) {
+      console.warn(`[SwarmService] memory.store failed for agent ${agentId}:`, err)
+    }
 
-      // Push the response + tool results (truncated) into the session message log
+    // Role-specific outcome evaluation
+    if (role === 'reviewer') {
+      const rejectionKeywords = ['reject', 'incorrect', 'wrong', 'fail', 'bug', 'error', 'broken']
+      const lower = response.toLowerCase()
+      state.reviewPassed = !rejectionKeywords.some((kw) => lower.includes(kw))
+    }
+
+    if (role === 'tester') {
+      const failureKeywords = ['fail', 'failing', 'broken', 'no tests', 'cannot test']
+      const lower = response.toLowerCase()
+      state.testPassed = !failureKeywords.some((kw) => lower.includes(kw))
+    }
+
+    // Append to agentOutputs
+    state.agentOutputs.push({
+      agentId,
+      role,
+      content: response,
+      round: state.currentRound,
+    })
+
+    // Increment round counter
+    state.currentRound += 1
+
+    // Push truncated output to session messages
+    const session = this.sessions.get(state.sessionId)
+    if (session) {
       let fullOutput = response
       if (toolResults.length > 0) {
         fullOutput += '\n' + toolResults.join('\n')
       }
       const truncated = fullOutput.length > 500 ? `${fullOutput.slice(0, 500)}…` : fullOutput
       session.state.messages.push(truncated)
-      session.state.currentRound += 1
-      session.updatedAt = Date.now()
-
-      // Notify renderer of updated state
-      this.push('swarm:update', { id: sessionId, state: session.state })
-
-      // Brief inter-task pause to avoid hammering the API
-      await this._delay(500)
     }
+
+    // Brief inter-task pause
+    await this._delay(500)
+
+    return state
   }
 
   // -------------------------------------------------------------------------

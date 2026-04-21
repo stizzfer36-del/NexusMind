@@ -3,6 +3,33 @@ import { useIPC, useIPCEvent } from '../../hooks'
 import type { SwarmSession, SwarmState } from '@nexusmind/shared'
 import styles from './SwarmPanel.module.css'
 
+const PIPELINE_NODES = ['coordinator', 'builder', 'reviewer', 'tester', 'docwriter', 'END']
+
+function GraphFlow({ activeNode }: { activeNode: string | null }) {
+  return (
+    <div className={styles.graphFlow}>
+      <div className={styles.graphFlowRow}>
+        {PIPELINE_NODES.map((node, i) => (
+          <React.Fragment key={node}>
+            <span
+              className={`${styles.graphNode} ${activeNode === node ? styles.graphNodeActive : ''}`}
+            >
+              {node}
+            </span>
+            {i < PIPELINE_NODES.length - 1 && (
+              <span className={styles.graphEdge}>→</span>
+            )}
+          </React.Fragment>
+        ))}
+      </div>
+      <div className={styles.graphBackEdges}>
+        <span className={styles.graphBackEdge}>reviewer ↩ builder (rejected)</span>
+        <span className={styles.graphBackEdge}>tester ↩ builder (failed)</span>
+      </div>
+    </div>
+  )
+}
+
 const STATUS_COLORS: Record<string, string> = {
   idle: 'var(--color-text-muted)',
   orchestrating: 'var(--color-accent)',
@@ -41,6 +68,7 @@ export function SwarmPanel() {
   const [showModal, setShowModal] = useState(false)
   const [goalText, setGoalText] = useState('')
   const [agentCount, setAgentCount] = useState(4)
+  const [activeNode, setActiveNode] = useState<string | null>(null)
 
   const selectedIdRef = useRef<string | null>(null)
   useEffect(() => { selectedIdRef.current = selectedId }, [selectedId])
@@ -60,10 +88,23 @@ export function SwarmPanel() {
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Real-time swarm state updates — use ref so callback never goes stale
-  useIPCEvent('swarm:update', useCallback((state: SwarmState) => {
+  useIPCEvent('swarm:update', useCallback((payload: SwarmState & { activeNode?: string }) => {
+    const { activeNode: payloadActiveNode, ...state } = payload as any
     setSessions(prev => prev.map(s =>
       s.id === selectedIdRef.current ? { ...s, state, updatedAt: Date.now() } : s
     ))
+    if (payloadActiveNode !== undefined) {
+      setActiveNode(payloadActiveNode)
+    } else {
+      const status = (state as SwarmState).status
+      const derived: Record<string, string> = {
+        orchestrating: 'coordinator',
+        executing: 'builder',
+        converging: 'reviewer',
+        completed: 'END',
+      }
+      setActiveNode(derived[status] ?? null)
+    }
   }, []))
 
   const handleLaunch = useCallback(async () => {
@@ -236,6 +277,11 @@ export function SwarmPanel() {
                   </button>
                 )}
               </div>
+            </div>
+
+            {/* Graph flow */}
+            <div className={styles.progressSection} style={{ borderBottom: 'none', paddingBottom: 0 }}>
+              <GraphFlow activeNode={activeNode} />
             </div>
 
             {/* Progress */}

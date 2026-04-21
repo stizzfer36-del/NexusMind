@@ -300,3 +300,13 @@
   padding: 0 6px;
   color: var(--color-text-secondary, #999);
 }
+
+.roleBadge {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 10px;
+  border: 1px solid currentColor;
+  margin-left: 6px;
+  text-transform: capitalize;
+  opacity: 0.85;
+}

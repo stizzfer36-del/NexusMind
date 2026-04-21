@@ -3,6 +3,22 @@ import { useIPC } from '../../hooks'
 import type { MemorySearchResult, MemoryType } from '@nexusmind/shared'
 import styles from './MemoryPanel.module.css'
 
+function parseAgentSource(source: string): { id: string; role: string | null } {
+  const colonIdx = source.indexOf(':')
+  if (colonIdx > -1) {
+    return { id: source.slice(0, colonIdx), role: source.slice(colonIdx + 1) }
+  }
+  return { id: source.slice(0, 8), role: null }
+}
+
+const ROLE_COLORS: Record<string, string> = {
+  coordinator: 'var(--color-accent, #7c6af7)',
+  builder:     'var(--color-green, #22c55e)',
+  reviewer:    'var(--color-yellow, #f59e0b)',
+  tester:      'var(--color-blue, #3b82f6)',
+  docwriter:   'var(--color-fg-muted, rgba(255,255,255,0.5))',
+}
+
 const TYPE_COLORS: Record<MemoryType, string> = {
   episodic: 'var(--color-blue, #3b82f6)',
   semantic: 'var(--color-accent)',
@@ -182,14 +198,26 @@ export function MemoryPanel() {
                         <span className={styles.detailVal}>{(((entry as any).importance ?? 0) * 100).toFixed(0)}%</span>
                       </div>
                     )}
-                    {(entry.agentId || (entry as any).source) && (
-                      <div className={styles.detailRow}>
-                        <span className={styles.detailKey}>Agent</span>
-                        <span className={`${styles.detailVal} ${styles.mono}`}>
-                          {(entry.agentId || ((entry as any).source ?? '')).slice(0, 12)}
-                        </span>
-                      </div>
-                    )}
+                    {(entry.agentId || (entry as any).source) && (() => {
+                      const raw: string = (entry as any).source || entry.agentId || ''
+                      const parsed = parseAgentSource(raw)
+                      return (
+                        <div className={styles.detailRow}>
+                          <span className={styles.detailKey}>Agent</span>
+                          <span className={`${styles.detailVal} ${styles.mono}`}>
+                            {parsed.id.slice(0, 12)}
+                          </span>
+                          {parsed.role && (
+                            <span
+                              className={styles.roleBadge}
+                              style={{ color: ROLE_COLORS[parsed.role] ?? 'inherit', borderColor: ROLE_COLORS[parsed.role] ?? 'inherit' }}
+                            >
+                              {parsed.role}
+                            </span>
+                          )}
+                        </div>
+                      )
+                    })()}
                     {(entry.tags ?? []).length > 0 && (
                       <div className={styles.detailRow}>
                         <span className={styles.detailKey}>Tags</span>

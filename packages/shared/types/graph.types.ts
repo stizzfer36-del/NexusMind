@@ -1,49 +1,31 @@
-export enum NodeType {
-  START = 'start',
-  END = 'end',
-  AGENT = 'agent',
-  TASK = 'task',
-  DECISION = 'decision',
-  PARALLEL = 'parallel',
-  JOIN = 'join',
-  GATEWAY = 'gateway',
-  TOOL = 'tool',
-  DELAY = 'delay'
-}
-
-export enum EdgeType {
-  SEQUENTIAL = 'sequential',
-  CONDITIONAL = 'conditional',
-  PARALLEL = 'parallel',
-  LOOP = 'loop',
-  ERROR = 'error',
-  DEFAULT = 'default'
-}
-
-export interface WorkflowNode {
-  id: string
-  type: NodeType
-  label: string
-  agentId?: string
-  taskId?: string
-  config?: Record<string, unknown>
-  position?: { x: number; y: number }
-}
-
-export interface WorkflowEdge {
-  id: string
-  source: string
-  target: string
-  type: EdgeType
-  condition?: string
-  label?: string
-}
-
 export interface WorkflowDAG {
   id: string
-  name: string
-  nodes: WorkflowNode[]
-  edges: WorkflowEdge[]
-  version: string
-  createdAt: number
+  nodes: Array<{ id: string; type: string; data?: unknown }>
+  edges: Array<{ from: string; to: string; condition?: string }>
+}
+
+export type SwarmNodeId =
+  | 'coordinator'
+  | 'builder'
+  | 'reviewer'
+  | 'tester'
+  | 'docwriter'
+  | 'END'
+
+export interface SwarmGraphSnapshot {
+  sessionId: string
+  currentNode: SwarmNodeId
+  round: number
+  reviewPassed: boolean
+  testPassed: boolean
+  taskCount: number
+  completedCount: number
+  timestamp: number
+}
+
+export interface GraphTransition {
+  from: SwarmNodeId
+  to: SwarmNodeId
+  reason: string
+  timestamp: number
 }
