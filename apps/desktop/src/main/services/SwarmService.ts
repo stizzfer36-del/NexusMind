@@ -52,12 +52,20 @@ interface SwarmSession {
 const AGENT_ROLES = ['coordinator', 'builder', 'reviewer', 'tester', 'docwriter'] as const
 type AgentRole = typeof AGENT_ROLES[number]
 
+const TOOL_INSTRUCTIONS = `
+You have access to tools. To use a tool, output EXACTLY:
+\`\`\`tool
+{"name": "tool_name", "args": {"param": "value"}}
+\`\`\`
+Available tools: read_file, write_file, list_dir, run_shell, web_fetch, search_memory.
+`
+
 const ROLE_PROMPTS: Record<AgentRole, string> = {
-  coordinator: 'You are the coordinator agent. Analyze the task and produce a clear, actionable implementation plan.',
-  builder:     'You are the builder agent. Write clean, working code to implement the described task.',
-  reviewer:    'You are the reviewer agent. Review the task output for correctness, bugs, and suggest improvements.',
-  tester:      'You are the tester agent. Write tests or describe how to test the described feature.',
-  docwriter:   'You are the docwriter agent. Write clear documentation or a summary for the described task.',
+  coordinator: TOOL_INSTRUCTIONS + 'You are the coordinator agent. Analyze the task and produce a clear, actionable implementation plan.',
+  builder:     TOOL_INSTRUCTIONS + 'You are the builder agent. Write clean, working code to implement the described task.',
+  reviewer:    TOOL_INSTRUCTIONS + 'You are the reviewer agent. Review the task output for correctness, bugs, and suggest improvements.',
+  tester:      TOOL_INSTRUCTIONS + 'You are the tester agent. Write tests or describe how to test the described feature.',
+  docwriter:   TOOL_INSTRUCTIONS + 'You are the docwriter agent. Write clear documentation or a summary for the described task.',
 }
 
 const DEFAULT_MODEL_CONFIG: ModelConfig = {
