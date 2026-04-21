@@ -11,6 +11,7 @@ export const SERVICE_TOKENS = {
   VoiceService: 'VoiceService',
   BenchService: 'BenchService',
   GraphService: 'GraphService',
+  EventRecorder: 'EventRecorder',
 } as const
 
 export class ServiceRegistry {

@@ -44,8 +44,21 @@ export class PtyManager {
 
       this.sessions.set(id, proc)
 
+      let chunkCounter = 0
       proc.onData((data: string) => {
         this.pushToWindows('terminal:data', { id, data } satisfies TerminalData)
+        // Sample 1-in-20 PTY chunks for replay recording
+        chunkCounter++
+        if (chunkCounter % 20 === 0) {
+          try {
+            const recorder = ServiceRegistry.getInstance().resolve(SERVICE_TOKENS.EventRecorder) as any
+            recorder.record({
+              sessionId: id,
+              type: 'pty:chunk',
+              payload: { data: data.slice(0, 200) }
+            })
+          } catch { /* recorder not ready yet */ }
+        }
       })
 
       proc.onExit(({ exitCode }: { exitCode: number; signal?: number }) => {

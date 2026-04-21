@@ -69,6 +69,9 @@ export const channels: HandlerMap = {
 
   // replay
   'replay:get': stub,
+  'replay:getSessions': stub,
+  'replay:getEvents': stub,
+  'replay:deleteSession': stub,
 
   // guard
   'guard:scan': stub,

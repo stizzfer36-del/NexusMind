@@ -107,6 +107,9 @@ export interface IpcEvents {
 
   // replay
   'replay:get': (sessionId: string) => ReplaySession
+  'replay:getSessions': () => ReplaySession[]
+  'replay:getEvents': (sessionId: string) => ReplayEvent[]
+  'replay:deleteSession': (sessionId: string) => void
 
   // guard
   'guard:scan': (scope: string) => GuardScanResult

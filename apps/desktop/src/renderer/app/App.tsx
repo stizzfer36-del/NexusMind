@@ -10,6 +10,7 @@ import { KanbanPanel } from '../panels/KanbanPanel'
 import { SwarmPanel } from '../panels/SwarmPanel'
 import { SettingsPanel } from '../panels/SettingsPanel'
 import { MemoryPanel } from '../panels/MemoryPanel'
+import { ReplayPanel } from '../panels/ReplayPanel'
 import { OnboardingPanel } from '../panels/OnboardingPanel'
 
 const PANELS: Record<Route, React.ReactNode> = {
@@ -17,6 +18,7 @@ const PANELS: Record<Route, React.ReactNode> = {
   kanban: <KanbanPanel />,
   swarm: <SwarmPanel />,
   memory: <MemoryPanel />,
+  replay: <ReplayPanel />,
   settings: <SettingsPanel />,
   bench: (
     <div style={{

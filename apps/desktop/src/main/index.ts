@@ -13,6 +13,7 @@ import { KanbanService } from './services/KanbanService.js'
 import { SwarmService } from './services/SwarmService.js'
 import { MemoryService } from './services/MemoryService.js'
 import { MCPService } from './services/MCPService.js'
+import { EventRecorder } from './services/EventRecorder.js'
 
 async function safeInit(name: string, fn: () => void | Promise<void>): Promise<void> {
   try {
@@ -50,6 +51,9 @@ async function bootstrap(): Promise<void> {
   const mcp = new MCPService()
   await safeInit('MCPService', () => mcp.init())
 
+  const eventRecorder = new EventRecorder()
+  await safeInit('EventRecorder', () => eventRecorder.init())
+
   const router = new IPCRouter()
   const allHandlers: Record<string, any> = {
     ...channels,
@@ -62,6 +66,7 @@ async function bootstrap(): Promise<void> {
     ...swarm.getHandlers(),
     ...memory.getHandlers(),
     ...mcp.getHandlers(),
+    ...eventRecorder.getHandlers(),
   }
   router.registerAll(allHandlers)
 

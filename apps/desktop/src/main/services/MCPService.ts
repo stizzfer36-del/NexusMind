@@ -148,10 +148,31 @@ export class MCPService {
     if (!tool) {
       throw new Error(`Tool not found: ${name}`)
     }
+
+    let recorder: any = null
+    try {
+      recorder = ServiceRegistry.getInstance().resolve(SERVICE_TOKENS.EventRecorder)
+    } catch {}
+
+    recorder?.record({
+      sessionId: 'unknown',
+      type: 'tool:call',
+      payload: { name, args }
+    })
+
     const start = Date.now()
     try {
       const result = await Promise.resolve(tool.execute(args))
-      console.log(`[MCPService] Tool "${name}" completed in ${Date.now() - start}ms`)
+      const durationMs = Date.now() - start
+      console.log(`[MCPService] Tool "${name}" completed in ${durationMs}ms`)
+
+      recorder?.record({
+        sessionId: 'unknown',
+        type: 'tool:result',
+        payload: { name, result: JSON.stringify(result).slice(0, 500) },
+        durationMs
+      })
+
       return result
     } catch (err) {
       console.error(`[MCPService] Tool "${name}" error:`, err)

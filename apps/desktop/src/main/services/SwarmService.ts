@@ -150,6 +150,12 @@ export class SwarmService {
     }
 
     const registry = ServiceRegistry.getInstance()
+
+    // Lazy EventRecorder — initializes last, may not be ready
+    let recorder: any = null
+    try { recorder = registry.resolve(SERVICE_TOKENS.EventRecorder) } catch {}
+    recorder?.startSession(id, session.name)
+
     this.cancelFlags.set(id, false)
 
     // Phase 1: ORCHESTRATING
@@ -235,6 +241,16 @@ export class SwarmService {
       session.state.currentRound = graphState.currentRound
       session.updatedAt = Date.now()
       this.push('swarm:update', { id, state: session.state, activeNode: nodeId })
+      recorder?.record({
+        sessionId: id,
+        type: 'graph:transition',
+        nodeId: nodeId,
+        payload: {
+          round: graphState.currentRound,
+          reviewPassed: graphState.reviewPassed,
+          testPassed: graphState.testPassed,
+        }
+      })
     }
 
     try {
@@ -242,6 +258,8 @@ export class SwarmService {
     } catch (err) {
       console.error(`[SwarmService] Session ${id} — graph error:`, err)
     }
+
+    recorder?.endSession(id)
 
     // Phase 3: COMPLETED
     if (!this.cancelFlags.get(id)) {
@@ -327,6 +345,20 @@ export class SwarmService {
       await this._delay(500)
       return state
     }
+
+    // Lazy recorder
+    let recorder: any = null
+    try {
+      const reg = ServiceRegistry.getInstance()
+      recorder = reg.resolve(SERVICE_TOKENS.EventRecorder)
+    } catch {}
+    recorder?.record({
+      sessionId: state.sessionId,
+      type: 'agent:output',
+      nodeId: role,
+      agentId,
+      payload: { content: response.slice(0, 1000), taskTitle: task?.title ?? '' }
+    })
 
     // Parse tool calls with TOOL_PATTERN regex, execute via mcpService if available
     const TOOL_PATTERN = /```tool\s*\n(\{[\s\S]*?\})\s*\n```/g

@@ -41,6 +41,14 @@ const MemoryIcon = () => (
   </svg>
 )
 
+const ReplayIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+    <path d="M2 8a6 6 0 1 0 1.5-3.9" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+    <path d="M2 4v4h4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+    <path d="M8 5v3.5l2.5 1.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+  </svg>
+)
+
 const SettingsIcon = () => (
   <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
     <circle cx="8" cy="8" r="2.5" stroke="currentColor" strokeWidth="1.2"/>
@@ -68,6 +76,7 @@ const NAV_ITEMS: NavItem[] = [
   { route: 'kanban', label: 'Kanban', shortcut: '⌘2', icon: <KanbanIcon /> },
   { route: 'swarm', label: 'Swarm', shortcut: '⌘3', icon: <SwarmIcon /> },
   { route: 'memory', label: 'Memory', shortcut: '⌘4', icon: <MemoryIcon /> },
+  { route: 'replay', label: 'Replay', shortcut: '⌘5', icon: <ReplayIcon /> },
   { route: 'bench', label: 'Bench', shortcut: '⌘B', icon: <BenchIcon /> },
 ]
 
