@@ -103,6 +103,19 @@ async function bootstrap(): Promise<void> {
     ...voiceService.getHandlers(),
     ...linkService.getHandlers(),
     ...syncService.getHandlers(),
+    // Overrides the stub: renderer signals onboarding is done; main opens the shell.
+    'onboarding:complete': () => {
+      console.log('[bootstrap] onboarding:complete received — opening main window')
+      // Belt-and-suspenders: persist the flag in case the renderer save failed.
+      try { settings.set('onboardingComplete', true) } catch {}
+      if (!WindowManager.getInstance().get('main')) {
+        createMainWindow()
+      }
+      const onboardingWin = WindowManager.getInstance().get('onboarding')
+      if (onboardingWin && !onboardingWin.isDestroyed()) {
+        onboardingWin.close()
+      }
+    },
   }
   router.registerAll(allHandlers)
 
@@ -114,6 +127,7 @@ async function bootstrap(): Promise<void> {
   })
 
   const onboardingComplete = settings.get<boolean>('onboardingComplete', false)
+  console.log(`[bootstrap] onboardingComplete=${onboardingComplete} — opening ${onboardingComplete ? 'main' : 'onboarding'} window`)
 
   if (!onboardingComplete) {
     createOnboardingWindow()

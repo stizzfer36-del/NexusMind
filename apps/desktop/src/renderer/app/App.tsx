@@ -55,6 +55,7 @@ export function App() {
   }, [])
 
   const isOnboarding = window.location.hash === '#onboarding'
+  console.log(`[App] hash="${window.location.hash}" isOnboarding=${isOnboarding}`)
 
   if (isOnboarding) {
     return <OnboardingPanel />

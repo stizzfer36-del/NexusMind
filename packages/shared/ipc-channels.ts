@@ -152,6 +152,9 @@ export interface IpcEvents {
   'bench:runBatch': (taskIds: string[], config: BenchRunConfig) => BenchRunResult[]
   'bench:listRuns': (filters?: { dimension?: BenchDimension; modelId?: string }) => BenchRunResult[]
 
+  // onboarding
+  'onboarding:complete': () => void
+
   // link
   'link:getConfig': () => LinkConfig
   'link:setConfig': (config: LinkConfig) => void

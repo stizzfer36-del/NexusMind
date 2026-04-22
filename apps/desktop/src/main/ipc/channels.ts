@@ -102,6 +102,9 @@ export const channels: HandlerMap = {
   'bench:runBatch': stub,
   'bench:listRuns': stub,
 
+  // onboarding
+  'onboarding:complete': stub,
+
   // link
   'link:getConfig': stub,
   'link:setConfig': stub,

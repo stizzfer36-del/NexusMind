@@ -3,7 +3,41 @@
     "allow": [
       "Bash(git commit -m ' *)",
       "Bash(echo \"Dev server PID: $!\")",
-      "Read(//tmp/**)"
+      "Read(//tmp/**)",
+      "Bash(awk '{print $9, $5}')",
+      "Bash(pnpm --filter @nexusmind/cli exec tsc --noEmit)",
+      "Bash(pnpm --filter @nexusmind/cli run build)",
+      "Bash(node packages/cli/dist/cli/bin/nexus.js --help)",
+      "Bash(node packages/cli/dist/cli/bin/nexus.js run-guard)",
+      "Bash(node packages/cli/dist/cli/bin/nexus.js run-bench --sampleSize 2)",
+      "Bash(node packages/cli/dist/cli/bin/nexus.js run-swarm --goal \"hello world\")",
+      "Bash(echo \"PID: $!\")",
+      "Bash(pkill -f \"electron-vite\")",
+      "Bash(pkill -f \"electron\")",
+      "Bash(echo \"Started PID: $!\")",
+      "Bash(python3 -c \"from PIL import Image; print\\('PIL: yes'\\)\")",
+      "Bash(python3 -c \"import struct, zlib; print\\('zlib+struct: yes'\\)\")",
+      "Bash(convert -size 512x512 'xc:#0d0d0d' -fill '#7c6af7' -draw 'roundrectangle 48,48 464,464 80,80' -fill white -font DejaVu-Sans-Bold -pointsize 260 -gravity center -annotate 0 N /home/claude/workspace/NexusMind/build/icon.png)",
+      "Bash(convert /home/claude/workspace/NexusMind/build/icon.png -resize 256x256 -define icon:auto-resize=256,128,64,48,32,16 /home/claude/workspace/NexusMind/build/icon.ico)",
+      "Bash(pnpm -w run build:desktop)",
+      "Bash(timeout 15 pnpm -w run build)",
+      "Bash(pnpm -w run dist:desktop)",
+      "Bash(echo \"exit: $?\")",
+      "Bash(python3 -c ' *)",
+      "Bash(pnpm --filter @nexusmind/desktop tsc --noEmit)",
+      "Bash(./node_modules/.bin/tsc --project apps/desktop/tsconfig.json --noEmit)",
+      "Bash(./node_modules/.bin/tsc --project packages/shared/tsconfig.json --noEmit)",
+      "Bash(pnpm build *)",
+      "Bash(node packages/cli/dist/cli/bin/nexus.js run-swarm --goal \"Create a test file and write a line\" --maxAgents 2 --maxRounds 1)",
+      "Bash(echo \"shared:EXIT:$?\")",
+      "Bash(echo \"cli:EXIT:$?\")",
+      "Bash(echo \"desktop:EXIT:$?\")",
+      "Bash(echo \"BUILD_EXIT:$?\")",
+      "Bash(echo \"DIST_EXIT:$?\")",
+      "Bash(node packages/cli/dist/cli/bin/nexus.js run-swarm --goal \"Create a test file and write a line\" --maxAgents 2)"
+    ],
+    "additionalDirectories": [
+      "/tmp"
     ]
   }
 }

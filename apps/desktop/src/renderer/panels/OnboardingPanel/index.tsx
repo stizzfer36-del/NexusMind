@@ -101,13 +101,21 @@ export function OnboardingPanel() {
 
   // ── Step 4: finish onboarding ──────────────────────────────────────────────
   const handleLaunch = useCallback(async () => {
+    console.log('[OnboardingPanel] Launch clicked — persisting settings...')
     setSaving(true)
     try {
       await settingsSet.invoke('settings:set', { key: 'onboardingComplete', value: true })
+      console.log('[OnboardingPanel] settings:set onboardingComplete=true — invoking onboarding:complete')
     } catch (err) {
-      console.error('OnboardingPanel: failed to mark onboarding complete', err)
+      console.error('[OnboardingPanel] Failed to save onboardingComplete:', err)
+      // Continue anyway — the main handler also persists the flag as a safety net.
     }
-    window.close()
+    try {
+      await window.nexusAPI.invoke('onboarding:complete')
+    } catch (err) {
+      console.error('[OnboardingPanel] onboarding:complete IPC failed:', err)
+      setSaving(false)
+    }
   }, [settingsSet])
 
   return (
