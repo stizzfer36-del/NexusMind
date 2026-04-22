@@ -10,7 +10,7 @@ export function createOnboardingWindow(): BrowserWindow {
     frame: false,
     center: true,
     webPreferences: {
-      preload: path.join(__dirname, '../../preload/index.js'),
+      preload: path.join(__dirname, '../preload/index.js'),
       contextIsolation: true,
       webSecurity: false,
     },
@@ -21,7 +21,7 @@ export function createOnboardingWindow(): BrowserWindow {
   if (process.env.ELECTRON_RENDERER_URL) {
     window.loadURL(process.env.ELECTRON_RENDERER_URL + '#onboarding')
   } else {
-    window.loadURL('file://' + path.join(__dirname, '../../renderer/index.html') + '#onboarding')
+    window.loadURL('file://' + path.join(__dirname, '../renderer/index.html') + '#onboarding')
   }
 
   window.on('close', () => {
