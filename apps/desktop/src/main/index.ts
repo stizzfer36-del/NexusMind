@@ -1,4 +1,4 @@
-import { app } from 'electron'
+import { app, ipcMain } from 'electron'
 import { WindowManager } from './windows/WindowManager.js'
 import { createMainWindow } from './windows/MainWindow.js'
 import { createOnboardingWindow } from './windows/OnboardingWindow.js'
@@ -84,6 +84,29 @@ async function bootstrap(): Promise<void> {
   const syncService = new SyncService()
   await safeInit('SyncService', () => syncService.init())
 
+  // Register onboarding:complete directly so it is guaranteed to be registered
+  // before any other handler batch runs. registerAll skips this channel below.
+  ipcMain.handle('onboarding:complete', () => {
+    console.log('[bootstrap] onboarding:complete received — creating main window')
+    try {
+      settings.set('onboardingComplete', true)
+      console.log('[bootstrap] onboarding:complete: persisted onboardingComplete=true')
+    } catch (e) {
+      console.error('[bootstrap] onboarding:complete: persist failed:', e)
+    }
+    if (!WindowManager.getInstance().get('main')) {
+      console.log('[bootstrap] onboarding:complete: calling createMainWindow()')
+      createMainWindow()
+    } else {
+      console.log('[bootstrap] onboarding:complete: main window already exists')
+    }
+    const onboardingWin = WindowManager.getInstance().get('onboarding')
+    if (onboardingWin && !onboardingWin.isDestroyed()) {
+      console.log('[bootstrap] onboarding:complete: closing onboarding window')
+      onboardingWin.close()
+    }
+  })
+
   const router = new IPCRouter()
   const allHandlers: Record<string, any> = {
     ...channels,
@@ -103,20 +126,9 @@ async function bootstrap(): Promise<void> {
     ...voiceService.getHandlers(),
     ...linkService.getHandlers(),
     ...syncService.getHandlers(),
-    // Overrides the stub: renderer signals onboarding is done; main opens the shell.
-    'onboarding:complete': () => {
-      console.log('[bootstrap] onboarding:complete received — opening main window')
-      // Belt-and-suspenders: persist the flag in case the renderer save failed.
-      try { settings.set('onboardingComplete', true) } catch {}
-      if (!WindowManager.getInstance().get('main')) {
-        createMainWindow()
-      }
-      const onboardingWin = WindowManager.getInstance().get('onboarding')
-      if (onboardingWin && !onboardingWin.isDestroyed()) {
-        onboardingWin.close()
-      }
-    },
   }
+  // Prevent double-registration — handled directly above via ipcMain.handle.
+  delete allHandlers['onboarding:complete']
   router.registerAll(allHandlers)
 
   app.on('before-quit', () => {
