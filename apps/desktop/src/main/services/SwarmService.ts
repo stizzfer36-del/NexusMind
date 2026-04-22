@@ -236,10 +236,13 @@ export class SwarmService {
       }, session.config.timeoutMs)
     }
 
+    let failed = false
     try {
       await graph.run(initialGraphState, onStateChange)
     } catch (err) {
       console.error(`[SwarmService] Session ${id} — graph error:`, err)
+      session.state.status = SwarmStatus.FAILED
+      failed = true
     } finally {
       if (timeoutId) clearTimeout(timeoutId)
     }
@@ -247,7 +250,7 @@ export class SwarmService {
     recorder?.endSession(id)
 
     // Phase 3: COMPLETED
-    if (!this.cancelFlags.get(id)) {
+    if (!failed && !this.cancelFlags.get(id)) {
       session.state.status = SwarmStatus.COMPLETED
       session.state.consensusReached = true
     }
@@ -331,8 +334,7 @@ export class SwarmService {
       }
     } catch (err) {
       console.error(`[SwarmService] executeAgentRole(${role}) — model error on task "${task.title}":`, err)
-      await this._delay(500)
-      return state
+      throw err
     }
 
     // Check cancellation after streaming
