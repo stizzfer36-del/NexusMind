@@ -1,7 +1,6 @@
-import { app, ipcMain } from 'electron'
+import { app } from 'electron'
 import { WindowManager } from './windows/WindowManager.js'
 import { createMainWindow } from './windows/MainWindow.js'
-import { createOnboardingWindow } from './windows/OnboardingWindow.js'
 import { IPCRouter } from './ipc/IPCRouter.js'
 import { channels } from './ipc/channels.js'
 import { DatabaseService } from './services/DatabaseService.js'
@@ -84,29 +83,6 @@ async function bootstrap(): Promise<void> {
   const syncService = new SyncService()
   await safeInit('SyncService', () => syncService.init())
 
-  // Register onboarding:complete directly so it is guaranteed to be registered
-  // before any other handler batch runs. registerAll skips this channel below.
-  ipcMain.handle('onboarding:complete', () => {
-    console.log('[bootstrap] onboarding:complete received — creating main window')
-    try {
-      settings.set('onboardingComplete', true)
-      console.log('[bootstrap] onboarding:complete: persisted onboardingComplete=true')
-    } catch (e) {
-      console.error('[bootstrap] onboarding:complete: persist failed:', e)
-    }
-    if (!WindowManager.getInstance().get('main')) {
-      console.log('[bootstrap] onboarding:complete: calling createMainWindow()')
-      createMainWindow()
-    } else {
-      console.log('[bootstrap] onboarding:complete: main window already exists')
-    }
-    const onboardingWin = WindowManager.getInstance().get('onboarding')
-    if (onboardingWin && !onboardingWin.isDestroyed()) {
-      console.log('[bootstrap] onboarding:complete: closing onboarding window')
-      onboardingWin.close()
-    }
-  })
-
   const router = new IPCRouter()
   const allHandlers: Record<string, any> = {
     ...channels,
@@ -127,8 +103,6 @@ async function bootstrap(): Promise<void> {
     ...linkService.getHandlers(),
     ...syncService.getHandlers(),
   }
-  // Prevent double-registration — handled directly above via ipcMain.handle.
-  delete allHandlers['onboarding:complete']
   router.registerAll(allHandlers)
 
   app.on('before-quit', () => {
@@ -138,14 +112,8 @@ async function bootstrap(): Promise<void> {
     try { linkService.shutdown() } catch {}
   })
 
-  const onboardingComplete = settings.get<boolean>('onboardingComplete', false)
-  console.log(`[bootstrap] onboardingComplete=${onboardingComplete} — opening ${onboardingComplete ? 'main' : 'onboarding'} window`)
-
-  if (!onboardingComplete) {
-    createOnboardingWindow()
-  } else {
-    createMainWindow()
-  }
+  console.log('[bootstrap] opening main window')
+  createMainWindow()
 
   setupAutoUpdater()
 }

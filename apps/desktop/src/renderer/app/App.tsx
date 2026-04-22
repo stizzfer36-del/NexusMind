@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react'
+import React, { useEffect, useState } from 'react'
 import '../styles/app.css'
 import { Layout } from './Layout'
 import { RouterProvider, Router, useRoute, useNavigate } from './Router'
@@ -31,39 +31,43 @@ const PANELS: Record<Route, React.ReactNode> = {
   voice: <ErrorBoundary panelName="Voice"><VoicePanel /></ErrorBoundary>,
 }
 
-function AppContent() {
+function AppShell() {
   const route = useRoute()
   const navigate = useNavigate()
 
   return (
     <Layout
-      sidebar={
-        <Sidebar
-          activeRoute={route}
-          onNavigate={navigate}
-        />
-      }
+      sidebar={<Sidebar activeRoute={route} onNavigate={navigate} />}
       main={<Router panels={PANELS} />}
       modelSelector={<ModelSelector />}
     />
   )
 }
 
+type View = 'loading' | 'onboarding' | 'shell'
+
 export function App() {
+  const [view, setView] = useState<View>('loading')
+
   useEffect(() => {
     document.title = 'NexusMind'
+    window.nexusAPI
+      .invoke('settings:get', 'onboardingComplete')
+      .then(complete => setView(complete ? 'shell' : 'onboarding'))
+      .catch(() => setView('onboarding'))
   }, [])
 
-  const isOnboarding = window.location.hash === '#onboarding'
-  console.log(`[App] hash="${window.location.hash}" isOnboarding=${isOnboarding}`)
+  if (view === 'loading') {
+    return null
+  }
 
-  if (isOnboarding) {
-    return <OnboardingPanel />
+  if (view === 'onboarding') {
+    return <OnboardingPanel onComplete={() => setView('shell')} />
   }
 
   return (
     <RouterProvider>
-      <AppContent />
+      <AppShell />
     </RouterProvider>
   )
 }

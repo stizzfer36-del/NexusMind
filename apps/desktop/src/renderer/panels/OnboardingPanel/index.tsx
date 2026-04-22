@@ -13,9 +13,9 @@ interface ModelOption {
 
 const MODEL_OPTIONS: ModelOption[] = [
   { id: 'claude-sonnet-4-6', name: 'Claude Sonnet 4.6', desc: 'Balanced power', badge: 'Recommended' },
-  { id: 'claude-haiku-4-5', name: 'Claude Haiku 4.5', desc: 'Fast responses', },
-  { id: 'gpt-4o', name: 'GPT-4o', desc: 'OpenAI flagship', },
-  { id: 'llama3', name: 'Llama 3', desc: 'Runs locally', },
+  { id: 'claude-haiku-4-5', name: 'Claude Haiku 4.5', desc: 'Fast responses' },
+  { id: 'gpt-4o', name: 'GPT-4o', desc: 'OpenAI flagship' },
+  { id: 'llama3', name: 'Llama 3', desc: 'Runs locally' },
 ]
 
 // ─── Logo SVG ────────────────────────────────────────────────────────────────
@@ -25,12 +25,7 @@ function LogoMark() {
     <div className={styles.logoCircle}>
       <svg width="36" height="36" viewBox="0 0 36 36" fill="none" aria-hidden="true">
         <circle cx="18" cy="18" r="14" stroke="#7c6af7" strokeWidth="1.5" fill="none" />
-        {/* Lightning bolt */}
-        <path
-          d="M20 8L13 19h6l-3 9 10-13h-6l3-7z"
-          fill="#7c6af7"
-          stroke="none"
-        />
+        <path d="M20 8L13 19h6l-3 9 10-13h-6l3-7z" fill="#7c6af7" stroke="none" />
       </svg>
     </div>
   )
@@ -42,10 +37,7 @@ function StepDots({ current, total }: { current: number; total: number }) {
   return (
     <div className={styles.steps} role="progressbar" aria-valuenow={current} aria-valuemin={1} aria-valuemax={total}>
       {Array.from({ length: total }, (_, i) => (
-        <div
-          key={i}
-          className={`${styles.dot} ${i + 1 === current ? styles.dotActive : ''}`}
-        />
+        <div key={i} className={`${styles.dot} ${i + 1 === current ? styles.dotActive : ''}`} />
       ))}
     </div>
   )
@@ -53,7 +45,11 @@ function StepDots({ current, total }: { current: number; total: number }) {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export function OnboardingPanel() {
+interface OnboardingPanelProps {
+  onComplete: () => void
+}
+
+export function OnboardingPanel({ onComplete }: OnboardingPanelProps) {
   const [step, setStep] = useState(1)
   const [apiKeys, setApiKeys] = useState({
     openai: '',
@@ -101,27 +97,14 @@ export function OnboardingPanel() {
 
   // ── Step 4: finish onboarding ──────────────────────────────────────────────
   const handleLaunch = useCallback(async () => {
-    console.log('[OnboardingPanel] Launch clicked')
     setSaving(true)
     try {
       await settingsSet.invoke('settings:set', { key: 'onboardingComplete', value: true })
     } catch (err) {
-      console.error('[OnboardingPanel] settings:set failed (continuing):', err)
+      console.error('OnboardingPanel: failed to persist onboardingComplete', err)
     }
-    if (!window.nexusAPI) {
-      console.error('[OnboardingPanel] window.nexusAPI is not defined — preload may not have loaded')
-      setSaving(false)
-      return
-    }
-    console.log('[OnboardingPanel] invoking onboarding:complete via IPC')
-    try {
-      await window.nexusAPI.invoke('onboarding:complete')
-      console.log('[OnboardingPanel] onboarding:complete IPC resolved')
-    } catch (err) {
-      console.error('[OnboardingPanel] onboarding:complete IPC failed:', err)
-      setSaving(false)
-    }
-  }, [settingsSet])
+    onComplete()
+  }, [settingsSet, onComplete])
 
   return (
     <div className={styles.root}>
@@ -201,9 +184,7 @@ export function OnboardingPanel() {
             </div>
 
             <div className={styles.btnRow}>
-              <button className={styles.btnSecondary} onClick={() => setStep(1)}>
-                Back
-              </button>
+              <button className={styles.btnSecondary} onClick={() => setStep(1)}>Back</button>
               <button
                 className={styles.btnPrimary}
                 onClick={handleSaveKeys}
@@ -231,17 +212,13 @@ export function OnboardingPanel() {
                 >
                   <span className={styles.modelCardName}>{model.name}</span>
                   <span className={styles.modelCardDesc}>{model.desc}</span>
-                  {model.badge && (
-                    <span className={styles.modelCardBadge}>{model.badge}</span>
-                  )}
+                  {model.badge && <span className={styles.modelCardBadge}>{model.badge}</span>}
                 </button>
               ))}
             </div>
 
             <div className={styles.btnRow}>
-              <button className={styles.btnSecondary} onClick={() => setStep(2)}>
-                Back
-              </button>
+              <button className={styles.btnSecondary} onClick={() => setStep(2)}>Back</button>
               <button
                 className={styles.btnPrimary}
                 onClick={handleSaveModel}
