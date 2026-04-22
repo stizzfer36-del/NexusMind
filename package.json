@@ -6,7 +6,9 @@
   "main": "apps/desktop/out/main/index.cjs",
   "scripts": {
     "dev": "env -u ELECTRON_RUN_AS_NODE electron-vite dev",
-    "build": "electron-vite build"
+    "build": "electron-vite build",
+    "build:desktop": "pnpm --filter @nexusmind/desktop run build",
+    "dist:desktop": "pnpm --filter @nexusmind/desktop run dist"
   },
   "devDependencies": {
     "@types/node": "^20.14.0",

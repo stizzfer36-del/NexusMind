@@ -5,7 +5,8 @@ node_modules
 # Build outputs
 dist
 out
-build
+apps/*/dist
+apps/*/out
 
 # Vite
 .vite

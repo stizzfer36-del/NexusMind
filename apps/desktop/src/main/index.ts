@@ -28,6 +28,12 @@ async function safeInit(name: string, fn: () => void | Promise<void>): Promise<v
   }
 }
 
+function setupAutoUpdater(): void {
+  // TODO(P14): install electron-updater and configure a publish provider before enabling.
+  // Example: import { autoUpdater } from 'electron-updater'
+  //          if (app.isPackaged) autoUpdater.checkForUpdatesAndNotify()
+}
+
 async function bootstrap(): Promise<void> {
   const db = new DatabaseService()
   await db.init()
@@ -109,6 +115,8 @@ async function bootstrap(): Promise<void> {
   } else {
     createMainWindow()
   }
+
+  setupAutoUpdater()
 }
 
 app.whenReady().then(bootstrap).catch(console.error)
