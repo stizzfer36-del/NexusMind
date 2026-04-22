@@ -18,6 +18,55 @@ import { VoicePanel } from '../panels/VoicePanel'
 import { OnboardingPanel } from '../panels/OnboardingPanel'
 import { ErrorBoundary } from '../components/ErrorBoundary'
 
+// Catches any render crash in the shell and shows an error instead of blank screen.
+class ShellErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { error: Error | null }
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props)
+    this.state = { error: null }
+  }
+  static getDerivedStateFromError(error: Error) {
+    return { error }
+  }
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    console.error('[ShellErrorBoundary] Shell crashed:', error, info)
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <div style={{
+          height: '100%', display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center',
+          background: '#0d0d0d', color: '#e8e8e8', padding: '2rem', gap: '1rem',
+        }}>
+          <div style={{ color: '#ef4444', fontWeight: 600, fontSize: '1rem' }}>
+            Shell failed to render
+          </div>
+          <pre style={{
+            background: '#141414', border: '1px solid #2a2a2a', borderRadius: 6,
+            padding: '1rem', fontSize: '0.75rem', maxWidth: 640, overflow: 'auto',
+            whiteSpace: 'pre-wrap', color: '#999',
+          }}>
+            {this.state.error.stack ?? this.state.error.message}
+          </pre>
+          <button
+            style={{
+              padding: '8px 20px', background: '#7c6af7', border: 'none',
+              borderRadius: 6, color: '#fff', cursor: 'pointer', fontSize: '0.85rem',
+            }}
+            onClick={() => this.setState({ error: null })}
+          >
+            Retry
+          </button>
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
+
 const PANELS: Record<Route, React.ReactNode> = {
   terminal: <ErrorBoundary panelName="Terminal"><TerminalPanel /></ErrorBoundary>,
   kanban: <ErrorBoundary panelName="Kanban"><KanbanPanel /></ErrorBoundary>,
@@ -34,6 +83,8 @@ const PANELS: Record<Route, React.ReactNode> = {
 function AppShell() {
   const route = useRoute()
   const navigate = useNavigate()
+
+  console.log('[AppShell] rendering, route=', route)
 
   return (
     <Layout
@@ -71,8 +122,10 @@ export function App() {
   }
 
   return (
-    <RouterProvider>
-      <AppShell />
-    </RouterProvider>
+    <ShellErrorBoundary>
+      <RouterProvider>
+        <AppShell />
+      </RouterProvider>
+    </ShellErrorBoundary>
   )
 }
