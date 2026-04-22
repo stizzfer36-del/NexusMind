@@ -25,7 +25,9 @@ import type {
   Task,
   TaskColumn,
   TTSRequest,
+  VoiceConfig,
   VoiceMode,
+  VoiceSession,
   WorkflowDAG,
   WorkflowTemplate,
   WorkflowRunRequest,
@@ -107,6 +109,13 @@ export interface IpcEvents {
   'voice:start': (mode: VoiceMode) => void
   'voice:stop': () => void
   'voice:tts': (request: TTSRequest) => Uint8Array
+  'voice:getConfig': () => VoiceConfig
+  'voice:setConfig': (config: VoiceConfig) => void
+  'voice:startSession': () => { sessionId: string }
+  'voice:getSession': (sessionId: string) => VoiceSession | null
+  'voice:listSessions': () => VoiceSession[]
+  'voice:transcribeChunk': (sessionId: string, audioChunk: Buffer) => { text: string }
+  'voice:speakText': (text: string) => { audioId: string }
 
   // graph
   'graph:list': () => WorkflowDAG[]
@@ -171,6 +180,7 @@ export interface IpcRendererEvents {
   // voice
   'voice:transcript': (segment: import('./types/index.js').TranscriptSegment) => void
   'voice:stateChange': (mode: VoiceMode) => void
+  'voice:audioReady': (payload: { audioId: string; data: number[] }) => void
 
   // graph
   'graph:updated': (graph: WorkflowDAG) => void

@@ -32,3 +32,27 @@ export interface DictionaryEntry {
   synonyms: string[]
   examples: string[]
 }
+
+export type VoiceStatus = 'idle' | 'listening' | 'processing' | 'speaking' | 'error'
+
+export interface VoiceSegment {
+  id: string
+  direction: 'user' | 'assistant'
+  text: string
+  startedAt: number
+  finishedAt: number
+}
+
+export interface VoiceSession {
+  id: string
+  createdAt: number
+  updatedAt: number
+  segments: VoiceSegment[]
+}
+
+export interface VoiceConfig {
+  sttModel: string
+  ttsVoice: string
+  pushToTalkKey: string
+  autoPlay: boolean
+}

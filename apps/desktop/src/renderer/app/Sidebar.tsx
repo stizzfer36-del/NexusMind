@@ -84,6 +84,15 @@ const ShieldIcon = () => (
   </svg>
 )
 
+const MicrophoneIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+    <rect x="5" y="1" width="6" height="8" rx="3" stroke="currentColor" strokeWidth="1.2"/>
+    <path d="M3 8a5 5 0 0 0 10 0" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+    <line x1="8" y1="13" x2="8" y2="15" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+    <line x1="5.5" y1="15" x2="10.5" y2="15" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+  </svg>
+)
+
 const CollapseIcon = ({ collapsed }: { collapsed: boolean }) => (
   <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ transform: collapsed ? 'rotate(180deg)' : 'none', transition: 'transform 150ms ease' }}>
     <path d="M9 3L5 7l4 4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
@@ -99,6 +108,7 @@ const NAV_ITEMS: NavItem[] = [
   { route: 'bench', label: 'Bench', shortcut: '⌘B', icon: <BenchIcon /> },
   { route: 'graph', label: 'Graph', shortcut: '⌘G', icon: <GraphIcon /> },
   { route: 'guard', label: 'Guard', shortcut: '⌘⇧G', icon: <ShieldIcon /> },
+  { route: 'voice', label: 'Voice', shortcut: '⌘⇧V', icon: <MicrophoneIcon /> },
 ]
 
 interface SidebarProps {

@@ -62,6 +62,13 @@ export const channels: HandlerMap = {
   'voice:start': stub,
   'voice:stop': stub,
   'voice:tts': stub,
+  'voice:getConfig': stub,
+  'voice:setConfig': stub,
+  'voice:startSession': stub,
+  'voice:getSession': stub,
+  'voice:listSessions': stub,
+  'voice:transcribeChunk': stub,
+  'voice:speakText': stub,
 
   // graph
   'graph:list': stub,

@@ -17,6 +17,7 @@ import { EventRecorder } from './services/EventRecorder.js'
 import { BenchService } from './services/BenchService.js'
 import { GraphService } from './services/graph/GraphService.js'
 import { GuardService } from './services/GuardService.js'
+import { VoiceService } from './services/VoiceService.js'
 
 async function safeInit(name: string, fn: () => void | Promise<void>): Promise<void> {
   try {
@@ -66,6 +67,9 @@ async function bootstrap(): Promise<void> {
   const guardService = new GuardService()
   await safeInit('GuardService', () => guardService.init())
 
+  const voiceService = new VoiceService()
+  await safeInit('VoiceService', () => voiceService.init())
+
   const router = new IPCRouter()
   const allHandlers: Record<string, any> = {
     ...channels,
@@ -82,6 +86,7 @@ async function bootstrap(): Promise<void> {
     ...bench.getHandlers(),
     ...graphService.getHandlers(),
     ...guardService.getHandlers(),
+    ...voiceService.getHandlers(),
   }
   router.registerAll(allHandlers)
 
