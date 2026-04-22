@@ -280,7 +280,7 @@ export function SwarmPanel() {
                 </span>
               </div>
               <div className={styles.detailActions}>
-                {selectedSession.state.status !== 'idle' && selectedSession.state.status !== 'completed' && (
+                {selectedSession.state.status !== SwarmStatus.IDLE && selectedSession.state.status !== SwarmStatus.COMPLETED && (
                   <button
                     className={styles.stopBtn}
                     onClick={() => handleStop(selectedSession.id)}

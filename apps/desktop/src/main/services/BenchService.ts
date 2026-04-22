@@ -49,13 +49,7 @@ export class BenchService {
 
   async listModels(): Promise<Array<{ id: string; provider: string; name: string }>> {
     try {
-      // Use the IPC-level KNOWN_MODELS catalogue via the handler exposed on the router
-      const handlers = this.router.getHandlers()
-      const result = handlers['models:list']?.(null as any)
-      if (Array.isArray(result)) {
-        return result.map((m: any) => ({ id: m.id, provider: m.provider, name: m.name }))
-      }
-      return []
+      return this.router.getKnownModels().map(m => ({ id: m.id, provider: m.provider, name: m.name }))
     } catch {
       return []
     }

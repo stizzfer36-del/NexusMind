@@ -118,7 +118,7 @@ export interface IpcEvents {
   'voice:startSession': () => { sessionId: string }
   'voice:getSession': (sessionId: string) => VoiceSession | null
   'voice:listSessions': () => VoiceSession[]
-  'voice:transcribeChunk': (sessionId: string, audioChunk: Buffer) => { text: string }
+  'voice:transcribeChunk': (sessionId: string, audioChunk: ArrayBuffer | Buffer) => { text: string }
   'voice:speakText': (text: string) => { audioId: string }
 
   // graph

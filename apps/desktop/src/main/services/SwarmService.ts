@@ -297,9 +297,7 @@ export class SwarmService {
       {
         id: crypto.randomUUID(),
         agentId,
-        // TODO: AgentMessage.role is AgentRole enum with no 'user' value; using COORDINATOR
-        // as the closest semantic match until shared types add a 'user' role.
-        role: SharedAgentRole.COORDINATOR,
+        role: SharedAgentRole.USER,
         content: `${systemPrompt}\n\nTask: ${task.title}\n\n${task.description ?? ''}`,
         timestamp: Date.now(),
       },

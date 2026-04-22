@@ -139,7 +139,7 @@ export function VoicePanel() {
 
     try {
       const arrayBuf = await blob.arrayBuffer()
-      const { text } = await transcribeIPC.invoke('voice:transcribeChunk', sessionId, arrayBuf as any)
+      const { text } = await transcribeIPC.invoke('voice:transcribeChunk', sessionId, arrayBuf)
       setPartial('')
       if (text) {
         const now = Date.now()

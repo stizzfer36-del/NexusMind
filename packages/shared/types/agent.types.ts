@@ -1,6 +1,11 @@
 export type AgentId = string
 
 export enum AgentRole {
+  // LLM message roles
+  USER = 'user',
+  ASSISTANT = 'assistant',
+  SYSTEM = 'system',
+  // Agent pipeline roles
   COORDINATOR = 'coordinator',
   SCOUT = 'scout',
   BUILDER = 'builder',

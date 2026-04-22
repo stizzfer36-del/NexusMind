@@ -71,11 +71,12 @@ export class VoiceService {
     return Array.from(this.sessions.values()).sort((a, b) => b.createdAt - a.createdAt)
   }
 
-  async transcribeChunk(sessionId: string, audioChunk: Buffer): Promise<{ text: string }> {
+  async transcribeChunk(sessionId: string, audioChunk: ArrayBuffer | Buffer): Promise<{ text: string }> {
     if (!this.whisperReady) {
       throw new Error('Whisper STT is not available. Install whisper.cpp to enable voice input.')
     }
-    const text = await this.whisper.transcribeChunk(audioChunk)
+    const buf = Buffer.isBuffer(audioChunk) ? audioChunk : Buffer.from(audioChunk)
+    const text = await this.whisper.transcribeChunk(buf)
     if (text) {
       const session = this.sessions.get(sessionId)
       if (session) {
@@ -122,7 +123,7 @@ export class VoiceService {
       'voice:startSession': (_event: any) => this.startSession(),
       'voice:getSession': (_event: any, sessionId: string) => this.getSession(sessionId),
       'voice:listSessions': (_event: any) => this.listSessions(),
-      'voice:transcribeChunk': (_event: any, sessionId: string, audioChunk: Buffer) =>
+      'voice:transcribeChunk': (_event: any, sessionId: string, audioChunk: ArrayBuffer | Buffer) =>
         this.transcribeChunk(sessionId, audioChunk),
       'voice:speakText': (_event: any, text: string) => this.speakText(text),
     }
