@@ -6,15 +6,21 @@
   "main": "apps/desktop/out/main/index.cjs",
   "scripts": {
     "dev": "env -u ELECTRON_RUN_AS_NODE electron-vite dev",
-    "build": "electron-vite build",
+    "build": "node scripts/build-wrapper.mjs",
     "build:desktop": "pnpm --filter @nexusmind/desktop run build",
-    "dist:desktop": "pnpm --filter @nexusmind/desktop run dist"
+    "dist:desktop": "pnpm --filter @nexusmind/desktop run dist",
+    "lint": "eslint ."
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.4",
     "@types/node": "^20.14.0",
     "@vitejs/plugin-react": "^4.3.0",
     "electron-vite": "^2.3.0",
+    "eslint": "^9.39.4",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^7.1.1",
     "typescript": "^5.5.0",
+    "typescript-eslint": "^8.59.0",
     "vite": "^5.4.0"
   },
   "packageManager": "pnpm@9.0.0"

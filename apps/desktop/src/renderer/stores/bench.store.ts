@@ -1,38 +1,40 @@
-import { useState, useCallback } from 'react'
+import { create } from 'zustand'
 import type { BenchTask, BenchDimension, BenchRunResult } from '@nexusmind/shared'
 
 export type DimensionFilter = 'all' | BenchDimension
 
-export function useBenchStore() {
-  const [tasks, setTasks] = useState<BenchTask[]>([])
-  const [runs, setRuns] = useState<BenchRunResult[]>([])
-  const [selectedDimension, setSelectedDimension] = useState<DimensionFilter>('all')
-  const [selectedModelId, setSelectedModelId] = useState<string | null>(null)
-  const [selectedProvider, setSelectedProvider] = useState<string | null>(null)
-  const [isRunning, setIsRunning] = useState(false)
-  const [lastError, setLastError] = useState<string | null>(null)
+interface BenchState {
+  tasks: BenchTask[]
+  runs: BenchRunResult[]
+  selectedDimension: DimensionFilter
+  selectedModelId: string | null
+  selectedProvider: string | null
+  isRunning: boolean
+  lastError: string | null
 
-  const setSelectedModel = useCallback((modelId: string, provider: string) => {
-    setSelectedModelId(modelId)
-    setSelectedProvider(provider)
-  }, [])
-
-  const clearError = useCallback(() => setLastError(null), [])
-
-  return {
-    tasks,
-    runs,
-    selectedDimension,
-    selectedModelId,
-    selectedProvider,
-    isRunning,
-    lastError,
-    setTasks,
-    setRuns,
-    setSelectedDimension,
-    setSelectedModel,
-    setIsRunning: (v: boolean) => setIsRunning(v),
-    setLastError: (e: string | null) => setLastError(e),
-    clearError,
-  }
+  setTasks: (tasks: BenchTask[]) => void
+  setRuns: (runs: BenchRunResult[]) => void
+  setSelectedDimension: (dim: DimensionFilter) => void
+  setSelectedModel: (modelId: string, provider: string) => void
+  setIsRunning: (v: boolean) => void
+  setLastError: (e: string | null) => void
+  clearError: () => void
 }
+
+export const useBenchStore = create<BenchState>((set) => ({
+  tasks: [],
+  runs: [],
+  selectedDimension: 'all',
+  selectedModelId: null,
+  selectedProvider: null,
+  isRunning: false,
+  lastError: null,
+
+  setTasks: (tasks) => set({ tasks }),
+  setRuns: (runs) => set({ runs }),
+  setSelectedDimension: (selectedDimension) => set({ selectedDimension }),
+  setSelectedModel: (selectedModelId, selectedProvider) => set({ selectedModelId, selectedProvider }),
+  setIsRunning: (isRunning) => set({ isRunning }),
+  setLastError: (lastError) => set({ lastError }),
+  clearError: () => set({ lastError: null }),
+}))

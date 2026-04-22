@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import styles from './Layout.module.css'
 import { useNavigate } from './Router'
-import { useIPC, useIPCEvent } from '../hooks'
+import { useIPC, useIPCEvent, useServiceHealth } from '../hooks'
 import type { SyncSummary } from '@nexusmind/shared'
 
 interface LayoutProps {
@@ -56,6 +56,24 @@ function SyncChip() {
   )
 }
 
+function ServiceHealthBanner() {
+  const failed = useServiceHealth()
+  if (failed.length === 0) return null
+  return (
+    <div className={styles.healthBanner} role="alert" aria-live="polite">
+      <svg className={styles.healthBannerIcon} viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.5" />
+        <path d="M8 5v3.5M8 11h.01" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      </svg>
+      <span>
+        {failed.length === 1
+          ? `${failed[0]} failed`
+          : `${failed.length} services failed: ${failed.join(', ')}`}
+      </span>
+    </div>
+  )
+}
+
 export function Layout({ sidebar, main, rightPanel, modelSelector }: LayoutProps) {
   const [rightOpen, setRightOpen] = useState(true)
 
@@ -107,6 +125,7 @@ export function Layout({ sidebar, main, rightPanel, modelSelector }: LayoutProps
 
         {/* Main panel */}
         <main id="nexus-main-content" className={styles.main}>
+          <ServiceHealthBanner />
           {main}
         </main>
 

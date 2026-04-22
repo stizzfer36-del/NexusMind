@@ -74,7 +74,14 @@ const PANELS: Record<Route, React.ReactNode> = {
   memory: <ErrorBoundary panelName="Memory"><MemoryPanel /></ErrorBoundary>,
   replay: <ErrorBoundary panelName="Replay"><ReplayPanel /></ErrorBoundary>,
   settings: <ErrorBoundary panelName="Settings"><SettingsPanel /></ErrorBoundary>,
-  bench: <ErrorBoundary panelName="Bench"><BenchPanel /></ErrorBoundary>,
+  bench: (
+    <ErrorBoundary panelName="Bench">
+      <div style={{ display: 'flex', height: '100%', gap: 8 }}>
+        <div style={{ flex: 1, minWidth: 0 }}><BenchPanel /></div>
+        <div style={{ flex: 1, minWidth: 0 }}><BenchPanel /></div>
+      </div>
+    </ErrorBoundary>
+  ),
   graph: <ErrorBoundary panelName="Graph"><GraphPanel /></ErrorBoundary>,
   guard: <ErrorBoundary panelName="Guard"><GuardPanel /></ErrorBoundary>,
   voice: <ErrorBoundary panelName="Voice"><VoicePanel /></ErrorBoundary>,

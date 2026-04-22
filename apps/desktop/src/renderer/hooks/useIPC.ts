@@ -23,7 +23,7 @@ export function useIPC<K extends keyof IpcEvents>() {
       try {
         if (typeof window === 'undefined' || !window.electronAPI?.invoke) {
           console.error(`[useIPC] window.electronAPI not available. Channel: ${String(channel)}`)
-          throw new Error('IPC bridge not initialized')
+          throw new Error(`IPC bridge not initialized [channel: ${String(channel)}]`)
         }
         const result = await window.electronAPI.invoke(channel, ...args)
         if (mountedRef.current) {
@@ -67,9 +67,14 @@ export function useIPCEvent<K extends keyof IpcRendererEvents>(
 }
 
 export function useServiceHealth() {
+  const [failedServices, setFailedServices] = useState<string[]>([])
+
   useIPCEvent('app:serviceHealth', useCallback((payload: { failed: string[] }) => {
+    setFailedServices(payload.failed)
     if (payload.failed.length > 0) {
       console.warn('[ServiceHealth] Failed services:', payload.failed.join(', '))
     }
   }, []))
+
+  return failedServices
 }

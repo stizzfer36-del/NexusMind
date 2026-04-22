@@ -39,7 +39,7 @@ function setupAutoUpdater(): void {
 
 async function bootstrap(): Promise<void> {
   const db = new DatabaseService()
-  await db.init()
+  await safeInit('DatabaseService', () => db.init())
 
   const settings = new SettingsService()
   await safeInit('SettingsService', () => settings.init())
@@ -118,6 +118,20 @@ async function bootstrap(): Promise<void> {
   console.log('[bootstrap] opening main window')
   createMainWindow()
 
+  // Broadcast service health to renderer once it loads
+  const mainWin = WindowManager.getInstance().get('main')
+  if (mainWin) {
+    const broadcastHealth = () => {
+      if (mainWin.isDestroyed()) return
+      mainWin.webContents.send('app:serviceHealth', { failed: failedServices })
+    }
+    if (mainWin.webContents.isLoading()) {
+      mainWin.webContents.once('did-finish-load', broadcastHealth)
+    } else {
+      broadcastHealth()
+    }
+  }
+
   // Register Edit menu for clipboard passthrough
   Menu.setApplicationMenu(
     Menu.buildFromTemplate([
@@ -135,16 +149,6 @@ async function bootstrap(): Promise<void> {
       },
     ])
   )
-
-  // Broadcast service health to renderer once it loads
-  if (failedServices.length > 0) {
-    const mainWin = WindowManager.getInstance().get('main')
-    if (mainWin) {
-      mainWin.webContents.once('did-finish-load', () => {
-        mainWin.webContents.send('app:serviceHealth', { failed: failedServices })
-      })
-    }
-  }
 
   setupAutoUpdater()
 }
