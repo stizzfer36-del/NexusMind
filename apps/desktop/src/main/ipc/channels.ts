@@ -78,7 +78,12 @@ export const channels: HandlerMap = {
   'replay:deleteSession': stub,
 
   // guard
-  'guard:scan': stub,
+  'guard:run': stub,
+  'guard:getRun': stub,
+  'guard:listRuns': stub,
+  'guard:getFindings': stub,
+  'guard:getPolicy': stub,
+  'guard:setPolicy': stub,
 
   // bench
   'bench:run': stub,

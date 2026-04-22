@@ -6,7 +6,8 @@ import type {
   BenchRunResult,
   BenchTask,
   GuardFinding,
-  GuardScanResult,
+  GuardRun,
+  GuardPolicy,
   MCPServerConfig,
   MCPServerId,
   MCPTool,
@@ -122,7 +123,12 @@ export interface IpcEvents {
   'replay:deleteSession': (sessionId: string) => void
 
   // guard
-  'guard:scan': (scope: string) => GuardScanResult
+  'guard:run': () => { runId: string }
+  'guard:getRun': (runId: string) => GuardRun | null
+  'guard:listRuns': () => GuardRun[]
+  'guard:getFindings': (runId: string) => GuardFinding[]
+  'guard:getPolicy': () => GuardPolicy
+  'guard:setPolicy': (policy: GuardPolicy) => void
 
   // bench
   'bench:run': (reportId: string) => BenchReport

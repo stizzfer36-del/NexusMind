@@ -12,6 +12,7 @@ export const SERVICE_TOKENS = {
   BenchService: 'BenchService',
   GraphService: 'GraphService',
   EventRecorder: 'EventRecorder',
+  GuardService: 'GuardService',
 } as const
 
 export class ServiceRegistry {

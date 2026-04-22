@@ -1,29 +1,32 @@
-export enum GuardSeverity {
-  INFO = 'info',
-  LOW = 'low',
-  MEDIUM = 'medium',
-  HIGH = 'high',
-  CRITICAL = 'critical'
-}
+export type GuardSeverity = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'
+
+export type GuardSource = 'semgrep' | 'npm-audit' | 'trufflehog'
 
 export interface GuardFinding {
   id: string
-  ruleId: string
+  runId: string
+  source: GuardSource
   severity: GuardSeverity
+  ruleId: string
   filePath: string
-  lineStart: number
-  lineEnd: number
+  line?: number
+  column?: number
   message: string
-  suggestion?: string
+  recommendation?: string
   snippet?: string
 }
 
-export interface GuardScanResult {
+export interface GuardRun {
   id: string
-  scope: string
-  findings: GuardFinding[]
-  scannedFiles: number
-  scannedLines: number
-  durationMs: number
-  timestamp: number
+  startedAt: number
+  finishedAt: number
+  status: 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED'
+  summary: {
+    totalFindings: number
+    bySeverity: Record<GuardSeverity, number>
+  }
+}
+
+export interface GuardPolicy {
+  blockOn: GuardSeverity[]
 }

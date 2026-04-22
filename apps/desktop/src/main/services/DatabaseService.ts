@@ -36,6 +36,33 @@ CREATE TABLE IF NOT EXISTS bench_runs (
 );
 CREATE INDEX IF NOT EXISTS idx_bench_runs_task ON bench_runs(task_id);
 CREATE INDEX IF NOT EXISTS idx_bench_runs_model ON bench_runs(model_id);
+CREATE TABLE IF NOT EXISTS guard_runs (
+  id TEXT PRIMARY KEY,
+  started_at INTEGER NOT NULL,
+  finished_at INTEGER,
+  status TEXT NOT NULL,
+  total_findings INTEGER NOT NULL DEFAULT 0,
+  low_count INTEGER NOT NULL DEFAULT 0,
+  medium_count INTEGER NOT NULL DEFAULT 0,
+  high_count INTEGER NOT NULL DEFAULT 0,
+  critical_count INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS guard_findings (
+  id TEXT PRIMARY KEY,
+  run_id TEXT NOT NULL,
+  source TEXT NOT NULL,
+  severity TEXT NOT NULL,
+  rule_id TEXT NOT NULL,
+  file_path TEXT NOT NULL,
+  line INTEGER,
+  col INTEGER,
+  message TEXT NOT NULL,
+  recommendation TEXT,
+  snippet TEXT,
+  FOREIGN KEY (run_id) REFERENCES guard_runs(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_guard_findings_run
+  ON guard_findings(run_id);
 `
 
 export class DatabaseService {

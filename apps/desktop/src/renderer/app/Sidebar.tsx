@@ -77,6 +77,13 @@ const GraphIcon = () => (
   </svg>
 )
 
+const ShieldIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+    <path d="M8 1.5L2.5 4v4c0 3 2.5 5.5 5.5 6.5 3-1 5.5-3.5 5.5-6.5V4L8 1.5z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/>
+    <path d="M5.5 8l2 2 3-3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+)
+
 const CollapseIcon = ({ collapsed }: { collapsed: boolean }) => (
   <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ transform: collapsed ? 'rotate(180deg)' : 'none', transition: 'transform 150ms ease' }}>
     <path d="M9 3L5 7l4 4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
@@ -91,6 +98,7 @@ const NAV_ITEMS: NavItem[] = [
   { route: 'replay', label: 'Replay', shortcut: '⌘5', icon: <ReplayIcon /> },
   { route: 'bench', label: 'Bench', shortcut: '⌘B', icon: <BenchIcon /> },
   { route: 'graph', label: 'Graph', shortcut: '⌘G', icon: <GraphIcon /> },
+  { route: 'guard', label: 'Guard', shortcut: '⌘⇧G', icon: <ShieldIcon /> },
 ]
 
 interface SidebarProps {
