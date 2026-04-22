@@ -9,7 +9,7 @@
   "main": "./out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
-    "build": "electron-vite build && (cp out/preload/index.mjs out/preload/index.js 2>/dev/null || cp out/preload/index.cjs out/preload/index.js 2>/dev/null || true)",
+    "build": "electron-vite build",
     "preview": "electron-vite preview",
     "postinstall": "electron-builder install-app-deps",
     "dist": "electron-builder"

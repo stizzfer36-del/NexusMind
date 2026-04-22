@@ -48,6 +48,10 @@ export function useIPCEvent<K extends keyof IpcRendererEvents>(
   callbackRef.current = callback
 
   useEffect(() => {
+    if (!window.nexusAPI) {
+      console.error(`[useIPCEvent] window.nexusAPI is undefined — preload did not load (channel: ${String(channel)})`)
+      return
+    }
     const unsubscribe = window.nexusAPI.on(
       channel,
       ((...args: Parameters<IpcRendererEvents[K]>) => {
