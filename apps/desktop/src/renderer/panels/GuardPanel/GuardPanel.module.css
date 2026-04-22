@@ -4,7 +4,7 @@
   height: 100%;
   overflow: hidden;
   background: var(--color-bg, #0d0d0d);
-  color: var(--color-fg, rgba(255,255,255,0.85));
+  color: var(--color-text);
   font-size: 13px;
 }
 
@@ -30,6 +30,10 @@
 .runBtn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+.runBtn:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
 }
 
 .summaryChips {
@@ -72,23 +76,35 @@
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--color-fg-muted, rgba(255,255,255,0.4));
+  color: var(--color-text-muted);
 }
 
 .runItem {
   display: flex;
   flex-direction: column;
   gap: 3px;
+  width: 100%;
+  text-align: left;
   padding: 8px 12px;
   cursor: pointer;
   border-bottom: 1px solid var(--color-border, rgba(255,255,255,0.04));
+  border-top: none;
+  border-left: none;
+  border-right: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
 }
 .runItem:hover    { background: rgba(255,255,255,0.04); }
 .runItemActive    { background: rgba(124,106,247,0.12); }
+.runItem:focus-visible {
+  outline: 2px solid var(--color-accent, #7c6af7);
+  outline-offset: -2px;
+}
 
 .runItemTime {
   font-size: 11px;
-  color: var(--color-fg-muted, rgba(255,255,255,0.4));
+  color: var(--color-text-muted);
 }
 
 .runItemStatus {
@@ -120,7 +136,7 @@
   background: transparent;
   border: 1px solid var(--color-border, rgba(255,255,255,0.12));
   border-radius: 4px;
-  color: var(--color-fg-muted, rgba(255,255,255,0.5));
+  color: var(--color-text-muted);
   font-size: 11px;
   padding: 2px 10px;
   cursor: pointer;
@@ -129,6 +145,10 @@
   border-color: var(--color-accent, #7c6af7);
   color: var(--color-accent, #7c6af7);
   background: rgba(124,106,247,0.1);
+}
+.filterBtn:focus-visible {
+  outline: 2px solid var(--color-accent, #7c6af7);
+  outline-offset: 2px;
 }
 
 .findingsTable {
@@ -141,13 +161,25 @@
   grid-template-columns: 80px 70px 1fr 60px 100px;
   gap: 8px;
   align-items: center;
+  width: 100%;
+  text-align: left;
   padding: 7px 12px;
   border-bottom: 1px solid var(--color-border, rgba(255,255,255,0.04));
+  border-top: none;
+  border-left: none;
+  border-right: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
   cursor: pointer;
   font-size: 12px;
 }
 .findingRow:hover      { background: rgba(255,255,255,0.04); }
 .findingRowExpanded    { background: rgba(255,255,255,0.05); }
+.findingRow:focus-visible {
+  outline: 2px solid var(--color-accent, #7c6af7);
+  outline-offset: -2px;
+}
 
 .sevBadge {
   font-size: 10px;
@@ -202,7 +234,7 @@
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--color-fg-muted, rgba(255,255,255,0.4));
+  color: var(--color-text-muted);
   margin-bottom: 8px;
 }
 
@@ -222,8 +254,35 @@
 .empty {
   padding: 32px;
   text-align: center;
-  color: var(--color-fg-muted, rgba(255,255,255,0.3));
+  color: var(--color-text-muted);
   font-size: 13px;
+}
+
+.emptyRuns {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px 16px;
+  text-align: center;
+  gap: 6px;
+}
+
+.emptyRunsIcon {
+  font-size: 24px;
+  opacity: 0.35;
+  margin-bottom: 2px;
+}
+
+.emptyRunsTitle {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.emptyRunsText {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  line-height: 1.5;
 }
 
 .errorBar {

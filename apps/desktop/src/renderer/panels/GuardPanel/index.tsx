@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useIPC } from '../../hooks'
 import type { GuardFinding, GuardRun, GuardPolicy, GuardSeverity } from '@nexusmind/shared'
 import styles from './GuardPanel.module.css'
@@ -90,9 +90,12 @@ export function GuardPanel() {
     try { await setPolicyIPC.invoke('guard:setPolicy', next) } catch {}
   }, [policy, setPolicyIPC])
 
-  const filtered = findings.filter(f =>
-    (sevFilter === 'all' || f.severity === sevFilter) &&
-    (sourceFilter === 'all' || f.source === sourceFilter)
+  const filtered = useMemo(
+    () => findings.filter(f =>
+      (sevFilter === 'all' || f.severity === sevFilter) &&
+      (sourceFilter === 'all' || f.source === sourceFilter)
+    ),
+    [findings, sevFilter, sourceFilter],
   )
 
   const summary = selectedRun?.summary
@@ -113,11 +116,11 @@ export function GuardPanel() {
                 </span>
               )
             ))}
-            {summary.totalFindings === 0 && <span style={{ fontSize: 12, color: '#22c55e' }}>✓ No findings</span>}
+            {summary.totalFindings === 0 && <span style={{ fontSize: 12, color: 'var(--color-green)' }}>✓ No findings</span>}
           </div>
         )}
         {policy.blockOn.length > 0 && (
-          <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginLeft: 'auto' }}>
+          <span style={{ fontSize: 11, color: 'var(--color-text-muted)', marginLeft: 'auto' }}>
             Blocking: {policy.blockOn.join(', ')}
           </span>
         )}
@@ -135,19 +138,25 @@ export function GuardPanel() {
         <div className={styles.sidebar}>
           <div className={styles.sidebarHeader}>Runs</div>
           {runs.length === 0 ? (
-            <div className={styles.empty} style={{ padding: '16px 12px', fontSize: 12 }}>No runs yet</div>
+            <div className={styles.emptyRuns}>
+              <div className={styles.emptyRunsIcon}>⛨</div>
+              <div className={styles.emptyRunsTitle}>No scans yet</div>
+              <div className={styles.emptyRunsText}>Click Run Guard to scan your project</div>
+            </div>
           ) : runs.map(run => (
-            <div
+            <button
               key={run.id}
               className={`${styles.runItem} ${selectedRun?.id === run.id ? styles.runItemActive : ''}`}
               onClick={() => selectRun(run)}
+              aria-pressed={selectedRun?.id === run.id}
+              aria-label={`Run ${fmt(run.startedAt)}, ${run.status}, ${run.summary.totalFindings} findings`}
             >
               <span className={`${styles.runItemStatus} ${styles[`status${run.status.charAt(0) + run.status.slice(1).toLowerCase()}` as keyof typeof styles]}`}>
                 {run.status}
               </span>
               <span className={styles.runItemTime}>{fmt(run.startedAt)}</span>
-              <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>{run.summary.totalFindings} findings</span>
-            </div>
+              <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>{run.summary.totalFindings} findings</span>
+            </button>
           ))}
         </div>
 
@@ -159,7 +168,7 @@ export function GuardPanel() {
                 {s === 'all' ? 'All' : s}
               </button>
             ))}
-            <span style={{ width: 1, background: 'rgba(255,255,255,0.1)', margin: '0 4px', alignSelf: 'stretch' }} />
+            <span style={{ width: 1, background: 'var(--color-border)', margin: '0 4px', alignSelf: 'stretch' }} />
             {(['all', 'semgrep', 'npm-audit', 'trufflehog'] as const).map(s => (
               <button key={s} className={`${styles.filterBtn} ${sourceFilter === s ? styles.filterBtnActive : ''}`} onClick={() => setSourceFilter(s)}>
                 {s === 'all' ? 'All sources' : s}
@@ -176,20 +185,22 @@ export function GuardPanel() {
               const isExp = expandedId === f.id
               return (
                 <React.Fragment key={f.id}>
-                  <div
+                  <button
                     className={`${styles.findingRow} ${isExp ? styles.findingRowExpanded : ''}`}
                     onClick={() => setExpandedId(isExp ? null : f.id)}
+                    aria-expanded={isExp}
+                    aria-label={`${f.severity} finding: ${f.message}${f.line ? ` at line ${f.line}` : ''}`}
                   >
                     <span className={`${styles.sevBadge} ${styles[`sev${f.severity}`]}`}>{f.severity}</span>
-                    <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>{f.source}</span>
-                    <span style={{ fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.message}</span>
-                    <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', textAlign: 'right' }}>{f.line ? `L${f.line}` : ''}</span>
-                    <span style={{ fontSize: 10, fontFamily: 'monospace', color: 'rgba(255,255,255,0.4)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.filePath.split('/').pop()}</span>
-                  </div>
+                    <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>{f.source}</span>
+                    <span style={{ fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--color-text)' }}>{f.message}</span>
+                    <span style={{ fontSize: 10, color: 'var(--color-text-muted)', textAlign: 'right' }}>{f.line ? `L${f.line}` : ''}</span>
+                    <span style={{ fontSize: 10, fontFamily: 'monospace', color: 'var(--color-text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.filePath.split('/').pop()}</span>
+                  </button>
                   {isExp && (
                     <div className={styles.findingDetail}>
                       <div className={styles.findingMsg}>{f.message}</div>
-                      <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginBottom: 4 }}>{f.filePath}{f.line ? `:${f.line}` : ''}</div>
+                      <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginBottom: 4 }}>{f.filePath}{f.line ? `:${f.line}` : ''}</div>
                       {f.snippet && <pre className={styles.findingSnippet}>{f.snippet}</pre>}
                       {f.recommendation && <div className={styles.findingRec}>→ {f.recommendation}</div>}
                     </div>
@@ -203,7 +214,7 @@ export function GuardPanel() {
         {/* Right policy panel */}
         <div className={styles.rightPanel}>
           <div className={styles.rightHeader}>Policy</div>
-          <div style={{ marginBottom: 12, fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>Block ship on:</div>
+          <div style={{ marginBottom: 12, fontSize: 11, color: 'var(--color-text-muted)' }}>Block ship on:</div>
           {SEV_ORDER.map(s => (
             <div key={s} className={styles.policyRow}>
               <input
@@ -220,7 +231,7 @@ export function GuardPanel() {
             {(['semgrep', 'npm-audit', 'trufflehog'] as const).map(src => {
               const count = findings.filter(f => f.source === src).length
               return (
-                <div key={src} style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', marginBottom: 4 }}>
+                <div key={src} style={{ fontSize: 11, color: 'var(--color-text-muted)', marginBottom: 4 }}>
                   {src}: {selectedRun ? `${count} findings` : '—'}
                 </div>
               )

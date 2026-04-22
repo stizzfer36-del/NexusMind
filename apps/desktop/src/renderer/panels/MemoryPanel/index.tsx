@@ -16,7 +16,7 @@ const ROLE_COLORS: Record<string, string> = {
   builder:     'var(--color-green, #22c55e)',
   reviewer:    'var(--color-yellow, #f59e0b)',
   tester:      'var(--color-blue, #3b82f6)',
-  docwriter:   'var(--color-fg-muted, rgba(255,255,255,0.5))',
+  docwriter:   'var(--color-text-muted)',
 }
 
 const TYPE_COLORS: Record<MemoryType, string> = {

@@ -45,8 +45,8 @@ export function BenchHistory({ runs }: BenchHistoryProps) {
     return map
   }, [filtered])
 
-  const baseStyle = { fontSize: 12, color: 'var(--color-fg, rgba(255,255,255,0.8))' }
-  const mutedStyle = { ...baseStyle, color: 'var(--color-fg-muted, rgba(255,255,255,0.4))' as string }
+  const baseStyle = { fontSize: 12, color: 'var(--color-text)' }
+  const mutedStyle = { ...baseStyle, color: 'var(--color-text-muted)' as string }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column' as const, height: '100%', overflow: 'hidden' }}>
@@ -57,7 +57,7 @@ export function BenchHistory({ runs }: BenchHistoryProps) {
             background: 'rgba(255,255,255,0.05)',
             border: '1px solid var(--color-border, rgba(255,255,255,0.12))',
             borderRadius: 6,
-            color: 'var(--color-fg, rgba(255,255,255,0.85))',
+            color: 'var(--color-text)',
             fontSize: 12,
             padding: '4px 8px',
             width: 160,
@@ -71,7 +71,7 @@ export function BenchHistory({ runs }: BenchHistoryProps) {
             background: 'rgba(255,255,255,0.05)',
             border: '1px solid var(--color-border, rgba(255,255,255,0.12))',
             borderRadius: 6,
-            color: 'var(--color-fg, rgba(255,255,255,0.85))',
+            color: 'var(--color-text)',
             fontSize: 12,
             padding: '4px 8px',
           }}
@@ -92,7 +92,7 @@ export function BenchHistory({ runs }: BenchHistoryProps) {
         ) : (
           Array.from(grouped.entries()).map(([date, dateRuns]) => (
             <div key={date}>
-              <div style={{ padding: '8px 16px 4px', fontSize: 11, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' as const, color: 'var(--color-fg-muted, rgba(255,255,255,0.4))' }}>
+              <div style={{ padding: '8px 16px 4px', fontSize: 11, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' as const, color: 'var(--color-text-muted)' }}>
                 {date}
               </div>
               {dateRuns.map(run => (
@@ -100,10 +100,10 @@ export function BenchHistory({ runs }: BenchHistoryProps) {
                   <span style={{ fontSize: 10, fontWeight: 600, color: DIM_COLORS[run.dimension], minWidth: 80, textTransform: 'uppercase' as const, letterSpacing: '0.05em' }}>
                     {run.dimension}
                   </span>
-                  <span style={{ flex: 1, fontFamily: 'monospace', fontSize: 11, color: 'var(--color-fg-muted, rgba(255,255,255,0.4))', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>
+                  <span style={{ flex: 1, fontFamily: 'monospace', fontSize: 11, color: 'var(--color-text-muted)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>
                     {run.modelId}
                   </span>
-                  <span style={{ fontSize: 11, color: 'var(--color-fg-muted, rgba(255,255,255,0.4))', minWidth: 55, textAlign: 'right' as const }}>
+                  <span style={{ fontSize: 11, color: 'var(--color-text-muted)', minWidth: 55, textAlign: 'right' as const }}>
                     {run.durationMs}ms
                   </span>
                   <span style={{

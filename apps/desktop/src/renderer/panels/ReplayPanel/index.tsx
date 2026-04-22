@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useIPC, useIPCEvent } from '../../hooks'
 import type { ReplayEvent, ReplaySession } from '@nexusmind/shared'
 import styles from './ReplayPanel.module.css'
@@ -78,6 +78,25 @@ export function ReplayPanel() {
     return () => { if (playIntervalRef.current) clearInterval(playIntervalRef.current) }
   }, [playing, speed, events.length])
 
+  const handlePlayPause = useCallback(() => setPlaying(p => !p), [])
+  const handleScrub = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setCurrentIndex(Number(e.target.value))
+    setPlaying(false)
+  }, [])
+
+  const eventDots = useMemo(() => events.map((ev, i) => (
+    <div
+      key={ev.id}
+      className={styles.eventDot}
+      style={{
+        left: `${(i / Math.max(1, events.length - 1)) * 100}%`,
+        background: EVENT_COLORS[ev.type] ?? 'rgba(255,255,255,0.3)',
+        opacity: i <= currentIndex ? 1 : 0.3,
+      }}
+      title={ev.type}
+    />
+  )), [events, currentIndex])
+
   const handleDelete = useCallback(async (id: string, e: React.MouseEvent) => {
     e.stopPropagation()
     await deleteIPC.invoke('replay:deleteSession', id)
@@ -134,7 +153,7 @@ export function ReplayPanel() {
             <div className={styles.controls}>
               <button
                 className={styles.playBtn}
-                onClick={() => setPlaying(p => !p)}
+                onClick={handlePlayPause}
               >
                 {playing ? '⏸' : '▶'}
               </button>
@@ -153,18 +172,7 @@ export function ReplayPanel() {
             {/* Event dot legend + slider */}
             <div className={styles.sliderWrapper}>
               <div className={styles.dotTrack}>
-                {events.map((ev, i) => (
-                  <div
-                    key={ev.id}
-                    className={styles.eventDot}
-                    style={{
-                      left: `${(i / Math.max(1, events.length - 1)) * 100}%`,
-                      background: EVENT_COLORS[ev.type] ?? 'rgba(255,255,255,0.3)',
-                      opacity: i <= currentIndex ? 1 : 0.3,
-                    }}
-                    title={ev.type}
-                  />
-                ))}
+                {eventDots}
               </div>
               <input
                 className={styles.slider}
@@ -172,7 +180,7 @@ export function ReplayPanel() {
                 min={0}
                 max={events.length - 1}
                 value={currentIndex}
-                onChange={e => { setCurrentIndex(Number(e.target.value)); setPlaying(false) }}
+                onChange={handleScrub}
               />
             </div>
 

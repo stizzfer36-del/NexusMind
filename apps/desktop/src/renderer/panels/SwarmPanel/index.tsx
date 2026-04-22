@@ -1,5 +1,6 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useIPC, useIPCEvent } from '../../hooks'
+import { SwarmStatus } from '@nexusmind/shared'
 import type { SwarmSession, SwarmState } from '@nexusmind/shared'
 import styles from './SwarmPanel.module.css'
 
@@ -77,7 +78,10 @@ export function SwarmPanel() {
   const startIPC = useIPC<'swarm:start'>()
   const stopIPC = useIPC<'swarm:stop'>()
 
-  const selectedSession = sessions.find(s => s.id === selectedId) ?? null
+  const selectedSession = useMemo(
+    () => sessions.find(s => s.id === selectedId) ?? null,
+    [sessions, selectedId],
+  )
 
   // Load sessions on mount
   useEffect(() => {
@@ -88,15 +92,15 @@ export function SwarmPanel() {
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Real-time swarm state updates — use ref so callback never goes stale
-  useIPCEvent('swarm:update', useCallback((payload: SwarmState & { activeNode?: string }) => {
-    const { activeNode: payloadActiveNode, ...state } = payload as any
+  useIPCEvent('swarm:update', useCallback((payload: SwarmState & { id?: string; activeNode?: string }) => {
+    const { activeNode: payloadActiveNode, id: _id, ...state } = payload
     setSessions(prev => prev.map(s =>
       s.id === selectedIdRef.current ? { ...s, state, updatedAt: Date.now() } : s
     ))
     if (payloadActiveNode !== undefined) {
       setActiveNode(payloadActiveNode)
     } else {
-      const status = (state as SwarmState).status
+      const status = state.status
       const derived: Record<string, string> = {
         orchestrating: 'coordinator',
         executing: 'builder',
@@ -111,7 +115,7 @@ export function SwarmPanel() {
     if (!goalText.trim()) return
     try {
       // Step 1: create session to obtain a real ID
-      const session: SwarmSession = await (window.nexusAPI as any).invoke('swarm:create', {
+      const session: SwarmSession = await window.nexusAPI.invoke('swarm:create', {
         maxAgents: agentCount,
         maxRounds: 10,
         consensusThreshold: 0.75,
@@ -137,7 +141,7 @@ export function SwarmPanel() {
       await stopIPC.invoke('swarm:stop', sessionId)
       setSessions(prev => prev.map(s =>
         s.id === sessionId
-          ? { ...s, state: { ...s.state, status: 'idle' as any }, updatedAt: Date.now() }
+          ? { ...s, state: { ...s.state, status: SwarmStatus.IDLE }, updatedAt: Date.now() }
           : s
       ))
     } catch (err) {
@@ -155,8 +159,13 @@ export function SwarmPanel() {
       {showModal && (
         <div className={styles.modal}>
           <div className={styles.modalOverlay} onClick={() => setShowModal(false)} />
-          <div className={styles.modalCard}>
-            <div className={styles.modalTitle}>New Swarm Session</div>
+          <div
+            className={styles.modalCard}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="swarm-modal-title"
+          >
+            <div id="swarm-modal-title" className={styles.modalTitle}>New Swarm Session</div>
             <div className={styles.modalBody}>
               <label className={styles.sectionTitle}>What should the swarm work on?</label>
               <input
@@ -205,6 +214,7 @@ export function SwarmPanel() {
             className={styles.newBtn}
             onClick={() => setShowModal(true)}
             title="New session"
+            aria-label="New session"
           >
             +
           </button>
@@ -215,10 +225,12 @@ export function SwarmPanel() {
             <div className={styles.emptyList}>No sessions yet</div>
           ) : (
             sessions.map(s => (
-              <div
+              <button
                 key={s.id}
                 className={`${styles.sessionItem} ${s.id === selectedId ? styles.sessionItemActive : ''}`}
                 onClick={() => setSelectedId(s.id)}
+                aria-pressed={s.id === selectedId}
+                aria-label={`${s.name}, ${STATUS_LABELS[s.state.status] ?? s.state.status}, ${s.state.agentIds.length} agents`}
               >
                 <div className={styles.sessionItemHeader}>
                   <span className={styles.sessionName}>{s.name}</span>
@@ -233,7 +245,7 @@ export function SwarmPanel() {
                   <span>{s.state.agentIds.length} agents</span>
                   <span>{fmt(s.createdAt)}</span>
                 </div>
-              </div>
+              </button>
             ))
           )}
         </div>

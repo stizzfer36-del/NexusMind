@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 import { useIPC } from '../../hooks'
 import { useBenchStore } from '../../stores/bench.store'
 import type { BenchDimension, BenchRunConfig } from '@nexusmind/shared'
@@ -76,13 +76,19 @@ export function useBench() {
     }
   }, [store, runBatchIPC, reloadRuns])
 
-  const filteredTasks = store.selectedDimension === 'all'
-    ? store.tasks
-    : store.tasks.filter(t => t.dimension === store.selectedDimension)
+  const filteredTasks = useMemo(
+    () => store.selectedDimension === 'all'
+      ? store.tasks
+      : store.tasks.filter(t => t.dimension === store.selectedDimension),
+    [store.tasks, store.selectedDimension],
+  )
 
-  const filteredRuns = store.selectedDimension === 'all'
-    ? store.runs
-    : store.runs.filter(r => r.dimension === store.selectedDimension)
+  const filteredRuns = useMemo(
+    () => store.selectedDimension === 'all'
+      ? store.runs
+      : store.runs.filter(r => r.dimension === store.selectedDimension),
+    [store.runs, store.selectedDimension],
+  )
 
   return {
     ...store,

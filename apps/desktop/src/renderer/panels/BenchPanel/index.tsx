@@ -43,12 +43,12 @@ export function BenchPanel() {
     if (modelInput.trim()) {
       bench.setSelectedModel(modelInput.trim(), providerInput.trim())
     }
-  }, [bench, modelInput, providerInput])
+  }, [bench.setSelectedModel, modelInput, providerInput])
 
   const handleRunAll = useCallback(() => {
     const ids = bench.filteredTasks.map(t => t.id)
     if (ids.length > 0) bench.runBatch(ids)
-  }, [bench])
+  }, [bench.filteredTasks, bench.runBatch])
 
   const runsForTask = (taskId: string): BenchRunResult[] =>
     bench.filteredRuns.filter(r => r.taskId === taskId).slice(0, 3)

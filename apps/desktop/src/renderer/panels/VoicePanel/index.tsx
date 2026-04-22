@@ -211,7 +211,9 @@ export function VoicePanel() {
           className={`${styles.micBtn} ${status === 'listening' ? styles.micBtnActive : ''}`}
           onClick={toggleMic}
           disabled={status === 'processing' || status === 'speaking'}
-          title="Push to talk (or hold Space)"
+          title={status === 'listening' ? 'Stop listening' : 'Push to talk (or hold Space)'}
+          aria-label={status === 'listening' ? 'Stop listening' : 'Push to talk (or hold Space)'}
+          aria-pressed={status === 'listening'}
         >
           <MicIcon active={status === 'listening'} />
         </button>

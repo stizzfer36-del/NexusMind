@@ -1,50 +1,16 @@
 import crypto from 'crypto'
+import type { IpcMainInvokeEvent } from 'electron'
 import { ServiceRegistry, SERVICE_TOKENS } from '../ServiceRegistry.js'
 import { WindowManager } from '../windows/WindowManager.js'
-import { ModelProvider, ModelCapability } from '@nexusmind/shared'
-import type { ModelConfig, StreamChunk, AgentMessage } from '@nexusmind/shared'
+import { ModelProvider, ModelCapability, SwarmStatus, AgentRole as SharedAgentRole } from '@nexusmind/shared'
+import type { ModelConfig, AgentMessage, SwarmConfig, SwarmState, SwarmSession } from '@nexusmind/shared'
 import type { KanbanService } from './KanbanService.js'
 import type { ModelRouter } from './ModelRouter.js'
 import type { MemoryService } from './MemoryService.js'
+import type { EventRecorder } from './EventRecorder.js'
+import type { MCPService } from './MCPService.js'
+import type { LinkService } from './LinkService.js'
 import { SwarmGraph, type AgentGraphState } from './SwarmGraph.js'
-
-// ---------------------------------------------------------------------------
-// Local type definitions (do not import from @nexusmind/shared)
-// ---------------------------------------------------------------------------
-
-enum SwarmStatus {
-  IDLE = 'idle',
-  ORCHESTRATING = 'orchestrating',
-  EXECUTING = 'executing',
-  CONVERGING = 'converging',
-  COMPLETED = 'completed',
-  FAILED = 'failed',
-}
-
-interface SwarmConfig {
-  maxAgents: number
-  maxRounds: number
-  consensusThreshold: number
-  timeoutMs: number
-  enableReflection: boolean
-}
-
-interface SwarmState {
-  status: SwarmStatus
-  currentRound: number
-  agentIds: string[]
-  messages: string[]
-  consensusReached: boolean
-}
-
-interface SwarmSession {
-  id: string
-  name: string
-  config: SwarmConfig
-  state: SwarmState
-  createdAt: number
-  updatedAt: number
-}
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -98,7 +64,7 @@ export class SwarmService {
     WindowManager.getInstance().get('main')?.webContents.send(channel, payload)
     if (channel === 'swarm:update') {
       try {
-        const link = ServiceRegistry.getInstance().resolve(SERVICE_TOKENS.LinkService) as any
+        const link = ServiceRegistry.getInstance().resolve<LinkService>(SERVICE_TOKENS.LinkService)
         link.broadcast({ type: 'swarm:status', payload })
       } catch { /* link not ready */ }
     }
@@ -158,8 +124,8 @@ export class SwarmService {
     const registry = ServiceRegistry.getInstance()
 
     // Lazy EventRecorder — initializes last, may not be ready
-    let recorder: any = null
-    try { recorder = registry.resolve(SERVICE_TOKENS.EventRecorder) } catch {}
+    let recorder: EventRecorder | null = null
+    try { recorder = registry.resolve<EventRecorder>(SERVICE_TOKENS.EventRecorder) } catch {}
     recorder?.startSession(id, session.name)
 
     this.cancelFlags.set(id, false)
@@ -186,7 +152,7 @@ export class SwarmService {
     // Seed kanban tasks
     try {
       const kanban = registry.resolve<KanbanService>(SERVICE_TOKENS.KanbanService)
-      ;(kanban as any).bulkCreate([
+      kanban.bulkCreate([
         { title: `Plan: ${session.name}`,      description: `Planning phase for session: ${session.name}`,      column: 'backlog', priority: 'medium' },
         { title: `Implement: ${session.name}`, description: `Implementation phase for session: ${session.name}`, column: 'backlog', priority: 'medium' },
         { title: `Review: ${session.name}`,    description: `Review phase for session: ${session.name}`,         column: 'backlog', priority: 'medium' },
@@ -305,7 +271,7 @@ export class SwarmService {
     }
 
     // Get next task for this role
-    const task = (kanban as any).getNextTask(role) as { id: string; title: string; description: string } | null
+    const task = kanban.getNextTask(role)
     if (!task) {
       if (role === 'reviewer') {
         state.reviewPassed = true
@@ -320,7 +286,7 @@ export class SwarmService {
 
     // Assign task to this agent
     try {
-      ;(kanban as any).assignToAgent(task.id, agentId)
+      kanban.assignToAgent(task.id, agentId)
     } catch (err) {
       console.warn(`[SwarmService] assignToAgent failed for task ${task.id}:`, err)
     }
@@ -331,7 +297,9 @@ export class SwarmService {
       {
         id: crypto.randomUUID(),
         agentId,
-        role: 'user' as any,
+        // TODO: AgentMessage.role is AgentRole enum with no 'user' value; using COORDINATOR
+        // as the closest semantic match until shared types add a 'user' role.
+        role: SharedAgentRole.COORDINATOR,
         content: `${systemPrompt}\n\nTask: ${task.title}\n\n${task.description ?? ''}`,
         timestamp: Date.now(),
       },
@@ -353,10 +321,10 @@ export class SwarmService {
     }
 
     // Lazy recorder
-    let recorder: any = null
+    let recorder: EventRecorder | null = null
     try {
       const reg = ServiceRegistry.getInstance()
-      recorder = reg.resolve(SERVICE_TOKENS.EventRecorder)
+      recorder = reg.resolve<EventRecorder>(SERVICE_TOKENS.EventRecorder)
     } catch {}
     recorder?.record({
       sessionId: state.sessionId,
@@ -370,9 +338,9 @@ export class SwarmService {
     const TOOL_PATTERN = /```tool\s*\n(\{[\s\S]*?\})\s*\n```/g
     const toolResults: string[] = []
 
-    let mcpService: any = null
+    let mcpService: MCPService | null = null
     try {
-      mcpService = registry.resolve<any>(SERVICE_TOKENS.MCPService)
+      mcpService = registry.resolve<MCPService>(SERVICE_TOKENS.MCPService)
     } catch {
       // MCPService not available — skip tool execution
     }
@@ -479,12 +447,12 @@ export class SwarmService {
   // IPC handlers
   // -------------------------------------------------------------------------
 
-  getHandlers(): Record<string, (event: any, ...args: any[]) => any> {
+  getHandlers(): Record<string, (event: IpcMainInvokeEvent, ...args: any[]) => any> {
     return {
-      'swarm:create': (_event: any, config: SwarmConfig, name?: string) =>
+      'swarm:create': (_event: IpcMainInvokeEvent, config: SwarmConfig, name?: string) =>
         this.createSession(config, name),
 
-      'swarm:start': (_event: any, session: SwarmSession) => {
+      'swarm:start': (_event: IpcMainInvokeEvent, session: SwarmSession) => {
         const found = this.getSession(session.id)
         if (found) {
           this.startSession(session.id).catch(console.error)
@@ -493,15 +461,15 @@ export class SwarmService {
         return null
       },
 
-      'swarm:stop': (_event: any, sessionId: string) =>
+      'swarm:stop': (_event: IpcMainInvokeEvent, sessionId: string) =>
         this.stopSession(sessionId),
 
-      'swarm:getState': (_event: any, sessionId: string) =>
+      'swarm:getState': (_event: IpcMainInvokeEvent, sessionId: string) =>
         this.getSession(sessionId)?.state ?? null,
 
       'swarm:list': () => this.listSessions(),
       'swarm:listSessions': () => this.listSessions(),
-      'swarm:getSession': (_event: any, id: string) => this.getSession(id),
+      'swarm:getSession': (_event: IpcMainInvokeEvent, id: string) => this.getSession(id),
     }
   }
 

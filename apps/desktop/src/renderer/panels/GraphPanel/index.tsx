@@ -252,7 +252,7 @@ export function GraphPanel() {
         {/* Templates */}
         <div className={styles.sectionTitle}>Templates</div>
         {templates.length === 0 ? (
-          <div style={{ fontSize: 11, color: 'var(--color-muted)', padding: '4px 0' }}>No templates</div>
+          <div style={{ fontSize: 11, color: 'var(--color-text-muted)', padding: '4px 0' }}>No templates</div>
         ) : (
           templates.map(tpl => (
             <button
@@ -268,7 +268,7 @@ export function GraphPanel() {
             >
               <div style={{ fontWeight: 500, fontSize: 12, color: 'var(--color-text)' }}>{tpl.name}</div>
               {tpl.description && (
-                <div style={{ fontSize: 10, color: 'var(--color-muted)', marginTop: 2 }}>{tpl.description}</div>
+                <div style={{ fontSize: 10, color: 'var(--color-text-muted)', marginTop: 2 }}>{tpl.description}</div>
               )}
             </button>
           ))
@@ -308,7 +308,7 @@ export function GraphPanel() {
           + New Blank
         </button>
         {dags.length === 0 ? (
-          <div style={{ fontSize: 11, color: 'var(--color-muted)', padding: '4px 0' }}>No saved workflows</div>
+          <div style={{ fontSize: 11, color: 'var(--color-text-muted)', padding: '4px 0' }}>No saved workflows</div>
         ) : (
           dags.map(dag => (
             <div key={dag.id} className={styles.dagItem}>
@@ -350,7 +350,9 @@ export function GraphPanel() {
       >
         {!currentDag ? (
           <div className={styles.emptyState}>
-            <div>Select or create a workflow to begin</div>
+            <div className={styles.emptyStateIcon}>◈</div>
+            <div className={styles.emptyStateTitle}>No workflow open</div>
+            <div className={styles.emptyStateText}>Select a saved workflow or create a new blank one to begin editing</div>
           </div>
         ) : (
           <>
@@ -405,7 +407,7 @@ export function GraphPanel() {
                         y={my - 4}
                         textAnchor="middle"
                         fontSize="10"
-                        fill="var(--color-muted, rgba(255,255,255,0.4))"
+                        fill="var(--color-text-muted)"
                       >
                         {edge.label ?? edge.condition}
                       </text>
@@ -443,7 +445,7 @@ export function GraphPanel() {
       <div className={styles.rightPanel}>
         {!currentDag ? (
           <div className={styles.emptyState}>
-            Select or create a workflow to begin
+            <div className={styles.emptyStateText}>Select or create a workflow to begin</div>
           </div>
         ) : selectedNode ? (
           /* Node inspector */
@@ -544,7 +546,7 @@ export function GraphPanel() {
             </button>
             <button
               className={styles.saveBtn}
-              style={{ borderColor: 'var(--color-muted)', color: 'var(--color-muted)' }}
+              style={{ borderColor: 'var(--color-text-muted)', color: 'var(--color-text-muted)' }}
               onClick={() => removeNodeEdges(selectedNode.id)}
             >
               Remove Selected Edges

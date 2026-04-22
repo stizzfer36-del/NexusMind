@@ -18,6 +18,7 @@ export const channels: HandlerMap = {
   'terminal:kill': stub,
 
   // swarm
+  'swarm:create': stub,
   'swarm:listSessions': stub,
   'swarm:start': stub,
   'swarm:stop': stub,

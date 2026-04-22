@@ -16,18 +16,19 @@ import { GraphPanel } from '../panels/GraphPanel'
 import { GuardPanel } from '../panels/GuardPanel'
 import { VoicePanel } from '../panels/VoicePanel'
 import { OnboardingPanel } from '../panels/OnboardingPanel'
+import { ErrorBoundary } from '../components/ErrorBoundary'
 
 const PANELS: Record<Route, React.ReactNode> = {
-  terminal: <TerminalPanel />,
-  kanban: <KanbanPanel />,
-  swarm: <SwarmPanel />,
-  memory: <MemoryPanel />,
-  replay: <ReplayPanel />,
-  settings: <SettingsPanel />,
-  bench: <BenchPanel />,
-  graph: <GraphPanel />,
-  guard: <GuardPanel />,
-  voice: <VoicePanel />,
+  terminal: <ErrorBoundary panelName="Terminal"><TerminalPanel /></ErrorBoundary>,
+  kanban: <ErrorBoundary panelName="Kanban"><KanbanPanel /></ErrorBoundary>,
+  swarm: <ErrorBoundary panelName="Swarm"><SwarmPanel /></ErrorBoundary>,
+  memory: <ErrorBoundary panelName="Memory"><MemoryPanel /></ErrorBoundary>,
+  replay: <ErrorBoundary panelName="Replay"><ReplayPanel /></ErrorBoundary>,
+  settings: <ErrorBoundary panelName="Settings"><SettingsPanel /></ErrorBoundary>,
+  bench: <ErrorBoundary panelName="Bench"><BenchPanel /></ErrorBoundary>,
+  graph: <ErrorBoundary panelName="Graph"><GraphPanel /></ErrorBoundary>,
+  guard: <ErrorBoundary panelName="Guard"><GuardPanel /></ErrorBoundary>,
+  voice: <ErrorBoundary panelName="Voice"><VoicePanel /></ErrorBoundary>,
 }
 
 function AppContent() {

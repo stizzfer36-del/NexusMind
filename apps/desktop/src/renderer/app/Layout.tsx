@@ -61,6 +61,8 @@ export function Layout({ sidebar, main, rightPanel, modelSelector }: LayoutProps
 
   return (
     <div className={styles.root}>
+      <a href="#nexus-main-content" className={styles.skipLink}>Skip to main content</a>
+
       {/* Top bar */}
       <header className={styles.topbar}>
         <div className={styles.topbarLeft}>
@@ -82,7 +84,8 @@ export function Layout({ sidebar, main, rightPanel, modelSelector }: LayoutProps
             className={`${styles.panelToggle} ${rightOpen ? styles.panelToggleActive : ''}`}
             onClick={() => setRightOpen(v => !v)}
             title={rightOpen ? 'Close right panel' : 'Open right panel'}
-            aria-label="Toggle right panel"
+            aria-label={rightOpen ? 'Close right panel' : 'Open right panel'}
+            aria-pressed={rightOpen}
           >
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
               <rect x="1" y="1" width="12" height="12" rx="2" stroke="currentColor" strokeWidth="1.2" />
@@ -103,7 +106,7 @@ export function Layout({ sidebar, main, rightPanel, modelSelector }: LayoutProps
         <SidebarHandle />
 
         {/* Main panel */}
-        <main className={styles.main}>
+        <main id="nexus-main-content" className={styles.main}>
           {main}
         </main>
 

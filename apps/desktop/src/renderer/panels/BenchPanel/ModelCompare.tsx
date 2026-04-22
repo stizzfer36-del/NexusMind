@@ -22,7 +22,7 @@ export function ModelCompare({ runs }: ModelCompareProps) {
   const models = Array.from(new Set(runs.map(r => r.modelId)))
   if (models.length === 0) {
     return (
-      <div style={{ padding: '24px 16px', textAlign: 'center', color: 'var(--color-fg-muted, rgba(255,255,255,0.3))', fontSize: 13 }}>
+      <div style={{ padding: '24px 16px', textAlign: 'center', color: 'var(--color-text-muted)', fontSize: 13 }}>
         Run benchmarks against multiple models to compare them here.
       </div>
     )
@@ -39,7 +39,7 @@ export function ModelCompare({ runs }: ModelCompareProps) {
       <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: 12 }}>
         <thead>
           <tr>
-            <th style={{ textAlign: 'left', padding: '6px 12px', color: 'var(--color-fg-muted, rgba(255,255,255,0.4))', fontWeight: 600, fontSize: 11, letterSpacing: '0.06em' }}>
+            <th style={{ textAlign: 'left', padding: '6px 12px', color: 'var(--color-text-muted)', fontWeight: 600, fontSize: 11, letterSpacing: '0.06em' }}>
               MODEL
             </th>
             {DIMENSIONS.map(d => (
@@ -52,7 +52,7 @@ export function ModelCompare({ runs }: ModelCompareProps) {
         <tbody>
           {models.map(modelId => (
             <tr key={modelId} style={{ borderTop: '1px solid var(--color-border, rgba(255,255,255,0.06))' }}>
-              <td style={{ padding: '8px 12px', color: 'var(--color-fg, rgba(255,255,255,0.8))', fontFamily: 'monospace', fontSize: 11 }}>
+              <td style={{ padding: '8px 12px', color: 'var(--color-text)', fontFamily: 'monospace', fontSize: 11 }}>
                 {modelId}
               </td>
               {DIMENSIONS.map(dim => {

@@ -68,6 +68,7 @@ export interface IpcEvents {
   'terminal:kill': (id: string) => void
 
   // swarm
+  'swarm:create': (config: import('./types/swarm.types.js').SwarmConfig, name?: string) => SwarmSession
   'swarm:listSessions': () => SwarmSession[]
   'swarm:start': (config: SwarmSession) => SwarmSession
   'swarm:stop': (sessionId: string) => void
@@ -171,7 +172,7 @@ export interface IpcRendererEvents {
   'terminal:exit': (payload: { id: string; code: number }) => void
 
   // swarm
-  'swarm:update': (state: SwarmState) => void
+  'swarm:update': (payload: SwarmState & { id?: string; activeNode?: string }) => void
   'swarm:message': (message: AgentMessage) => void
 
   // kanban / tasks
