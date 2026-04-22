@@ -60,9 +60,6 @@ export const channels: HandlerMap = {
   'memory:delete': stub,
 
   // voice
-  'voice:start': stub,
-  'voice:stop': stub,
-  'voice:tts': stub,
   'voice:getConfig': stub,
   'voice:setConfig': stub,
   'voice:startSession': stub,
@@ -94,8 +91,6 @@ export const channels: HandlerMap = {
   'guard:setPolicy': stub,
 
   // bench
-  'bench:run': stub,
-  'bench:getReport': stub,
   'bench:listTasks': stub,
   'bench:listModels': stub,
   'bench:runTask': stub,

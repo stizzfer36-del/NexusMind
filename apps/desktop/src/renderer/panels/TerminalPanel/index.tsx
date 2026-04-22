@@ -26,7 +26,12 @@ export function TerminalPanel() {
   // Spawn a new terminal session
   const spawnSession = useCallback(async () => {
     try {
-      const session = await invoke('terminal:spawn', '/bin/bash')
+      const result = await invoke('terminal:spawn', '/bin/bash')
+      if (!result || !('id' in result) || !(result as any).id) {
+        console.error('[TerminalPanel] terminal:spawn returned invalid response — is PtyManager running?', result)
+        return
+      }
+      const session = result as { id: string; pid: number; shell: string }
       const term = new Terminal({
         theme: {
           background: '#0d0d0d',
@@ -62,7 +67,6 @@ export function TerminalPanel() {
       const fitAddon = new FitAddon()
       term.loadAddon(fitAddon)
 
-      // Send input to PTY
       term.onData((data) => {
         writeIPC.invoke('terminal:write', { id: session.id, data })
       })

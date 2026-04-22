@@ -20,11 +20,14 @@ import { VoiceService } from './services/VoiceService.js'
 import { LinkService } from './services/LinkService.js'
 import { SyncService } from './services/SyncService.js'
 
+const failedServices: string[] = []
+
 async function safeInit(name: string, fn: () => void | Promise<void>): Promise<void> {
   try {
     await fn()
   } catch (err) {
     console.error(`[bootstrap] Failed to init ${name}:`, err)
+    failedServices.push(name)
   }
 }
 
@@ -114,6 +117,16 @@ async function bootstrap(): Promise<void> {
 
   console.log('[bootstrap] opening main window')
   createMainWindow()
+
+  // Broadcast service health to renderer once it loads
+  if (failedServices.length > 0) {
+    const mainWin = WindowManager.getInstance().get('main')
+    if (mainWin) {
+      mainWin.webContents.once('did-finish-load', () => {
+        mainWin.webContents.send('app:serviceHealth', { failed: failedServices })
+      })
+    }
+  }
 
   setupAutoUpdater()
 }

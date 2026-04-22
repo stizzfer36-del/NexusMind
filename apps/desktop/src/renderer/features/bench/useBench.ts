@@ -16,20 +16,20 @@ export function useBench() {
   useEffect(() => {
     const dim = store.selectedDimension === 'all' ? undefined : store.selectedDimension as BenchDimension
     tasksIPC.invoke('bench:listTasks', dim)
-      .then(store.setTasks)
+      .then(res => { if (Array.isArray(res)) store.setTasks(res) })
       .catch(err => store.setLastError(String(err)))
   }, [store.selectedDimension]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load runs on mount
   useEffect(() => {
     runsIPC.invoke('bench:listRuns')
-      .then(store.setRuns)
+      .then(res => { if (Array.isArray(res)) store.setRuns(res) })
       .catch(err => store.setLastError(String(err)))
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const reloadRuns = useCallback(async () => {
     const runs = await runsIPC.invoke('bench:listRuns')
-    store.setRuns(runs)
+    if (Array.isArray(runs)) store.setRuns(runs)
   }, [runsIPC, store])
 
   const runSingle = useCallback(async (taskId: string) => {

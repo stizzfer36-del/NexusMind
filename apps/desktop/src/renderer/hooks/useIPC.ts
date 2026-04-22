@@ -21,6 +21,9 @@ export function useIPC<K extends keyof IpcEvents>() {
       setLoading(true)
       setError(null)
       try {
+        if (!window.nexusAPI) {
+          throw new Error(`[useIPC] window.nexusAPI unavailable — preload may not have loaded (channel: ${String(channel)})`)
+        }
         const result = await window.nexusAPI.invoke(channel, ...args)
         if (mountedRef.current) {
           setLoading(false)
@@ -60,4 +63,12 @@ export function useIPCEvent<K extends keyof IpcRendererEvents>(
     )
     return unsubscribe
   }, [channel])
+}
+
+export function useServiceHealth() {
+  useIPCEvent('app:serviceHealth', useCallback((payload: { failed: string[] }) => {
+    if (payload.failed.length > 0) {
+      console.warn('[ServiceHealth] Failed services:', payload.failed.join(', '))
+    }
+  }, []))
 }

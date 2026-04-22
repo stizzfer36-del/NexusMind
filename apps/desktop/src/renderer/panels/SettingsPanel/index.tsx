@@ -4,14 +4,14 @@ import styles from './SettingsPanel.module.css'
 
 type Section = 'api-keys' | 'models' | 'appearance' | 'shortcuts' | 'link' | 'sync' | 'about'
 
-const SECTIONS: { id: Section; label: string; icon: string }[] = [
-  { id: 'api-keys', label: 'API Keys', icon: '🔑' },
-  { id: 'models', label: 'Models', icon: '🤖' },
-  { id: 'appearance', label: 'Appearance', icon: '🎨' },
-  { id: 'shortcuts', label: 'Shortcuts', icon: '⌨️' },
-  { id: 'link', label: 'Link', icon: '🔗' },
-  { id: 'sync', label: 'Sync', icon: '☁️' },
-  { id: 'about', label: 'About', icon: 'ℹ️' },
+const SECTIONS: { id: Section; label: string }[] = [
+  { id: 'api-keys', label: 'API Keys' },
+  { id: 'models', label: 'Models' },
+  { id: 'appearance', label: 'Appearance' },
+  { id: 'shortcuts', label: 'Shortcuts' },
+  { id: 'link', label: 'Link' },
+  { id: 'sync', label: 'Sync' },
+  { id: 'about', label: 'About' },
 ]
 
 const SHORTCUTS: { action: string; keys: string[] }[] = [
@@ -336,19 +336,6 @@ function SyncSection() {
       </div>
 
       <div className={styles.fieldGroup}>
-        <label className={styles.fieldLabel}>Endpoint URL</label>
-        <input
-          type="text"
-          className={styles.fieldInput}
-          value={config.endpoint}
-          onChange={e => setConfig(c => ({ ...c, endpoint: e.target.value }))}
-          placeholder="https://sync.nexusmind.app"
-          disabled
-          title="Endpoint configuration coming soon"
-        />
-      </div>
-
-      <div className={styles.fieldGroup}>
         <label className={styles.fieldLabel}>API Key</label>
         <input
           type="password"
@@ -398,7 +385,6 @@ export function SettingsPanel() {
             className={`${styles.navItem} ${activeSection === s.id ? styles.navItemActive : ''}`}
             onClick={() => setActiveSection(s.id)}
           >
-            <span className={styles.navIcon}>{s.icon}</span>
             <span className={styles.navLabel}>{s.label}</span>
           </button>
         ))}
@@ -427,7 +413,7 @@ export function SettingsPanel() {
               Configure model preferences and defaults. Available models depend on your API keys.
             </p>
             <div className={styles.placeholder}>
-              <span>Model configuration coming soon</span>
+              <span>Configure model preferences after adding API keys above.</span>
             </div>
           </div>
         )}
@@ -441,21 +427,14 @@ export function SettingsPanel() {
             <div className={styles.fieldGroup}>
               <label className={styles.fieldLabel}>Theme</label>
               <div className={styles.themeOptions}>
-                <div className={`${styles.themeOption} ${styles.themeOptionActive}`}>
-                  <div className={styles.themePreview} style={{ background: '#0d0d0d' }}>
-                    <div style={{ width: 8, height: 8, borderRadius: 2, background: '#7c6af7', margin: 4 }} />
-                  </div>
-                  <span className={styles.themeLabel}>Dark</span>
-                  <span className={styles.themeCheck}>✓</span>
+              <div className={`${styles.themeOption} ${styles.themeOptionActive}`}>
+                <div className={styles.themePreview} style={{ background: '#0d0d0d' }}>
+                  <div style={{ width: 8, height: 8, borderRadius: 2, background: '#7c6af7', margin: 4 }} />
                 </div>
-                <div className={`${styles.themeOption} ${styles.themeOptionDisabled}`}>
-                  <div className={styles.themePreview} style={{ background: '#f8f8f8' }}>
-                    <div style={{ width: 8, height: 8, borderRadius: 2, background: '#7c6af7', margin: 4 }} />
-                  </div>
-                  <span className={styles.themeLabel}>Light</span>
-                  <span className={styles.themeSoon}>soon</span>
-                </div>
+                <span className={styles.themeLabel}>Dark</span>
+                <span className={styles.themeCheck}>✓</span>
               </div>
+            </div>
             </div>
           </div>
         )}

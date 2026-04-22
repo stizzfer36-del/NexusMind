@@ -77,7 +77,16 @@ export function BenchPanel() {
         <div className={styles.sidebarSection}>Tasks</div>
         <div className={styles.taskList}>
           {bench.isLoadingTasks ? (
-            <div className={styles.loading}>Loading tasks…</div>
+            <div className={styles.skeletonList}>
+              <div className={styles.skeletonRow} />
+              <div className={styles.skeletonRow} />
+              <div className={styles.skeletonRow} />
+            </div>
+          ) : bench.lastError ? (
+            <div className={styles.errorState}>
+              <span className={styles.errorLabel}>Service unavailable</span>
+              <span className={styles.errorDetail}>{bench.lastError}</span>
+            </div>
           ) : bench.filteredTasks.length === 0 ? (
             <div className={styles.empty}>No tasks</div>
           ) : (

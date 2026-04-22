@@ -16,11 +16,17 @@ export function useVoice() {
   const initVoice = useCallback(async () => {
     try {
       const cfg = await getConfigIPC.invoke('voice:getConfig')
-      store.setConfig(cfg)
+      if (cfg && typeof cfg === 'object' && !('error' in cfg)) {
+        store.setConfig(cfg as VoiceConfig)
+      }
     } catch {}
     try {
-      const { sessionId } = await startSessionIPC.invoke('voice:startSession')
-      store.setSessionId(sessionId)
+      const result = await startSessionIPC.invoke('voice:startSession')
+      if (result && (result as any).sessionId) {
+        store.setSessionId((result as any).sessionId)
+      } else {
+        store.setError('Voice service unavailable')
+      }
     } catch (e) {
       store.setError(String(e))
     }

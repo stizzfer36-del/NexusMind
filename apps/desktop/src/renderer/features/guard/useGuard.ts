@@ -16,7 +16,7 @@ export function useGuard() {
     store.setLoading(true)
     try {
       const runs = await listRunsIPC.invoke('guard:listRuns')
-      store.setRuns(runs)
+      if (Array.isArray(runs)) store.setRuns(runs)
     } catch (e) {
       store.setError(String(e))
     } finally {
@@ -28,7 +28,7 @@ export function useGuard() {
     store.setSelectedRunId(runId)
     try {
       const findings = await getFindingsIPC.invoke('guard:getFindings', runId)
-      store.setFindings(findings)
+      if (Array.isArray(findings)) store.setFindings(findings)
     } catch (e) {
       store.setError(String(e))
     }
@@ -38,17 +38,23 @@ export function useGuard() {
     store.setRunning(true)
     store.clearError()
     try {
-      const { runId } = await runGuardIPC.invoke('guard:run')
+      const res = await runGuardIPC.invoke('guard:run')
+      if (!res || !('runId' in res) || !(res as any).runId) {
+        store.setError('Guard service unavailable')
+        store.setRunning(false)
+        return
+      }
+      const { runId } = res as { runId: string }
       const poll = setInterval(async () => {
         const run = await getRunIPC.invoke('guard:getRun', runId)
         if (run && (run.status === 'COMPLETED' || run.status === 'FAILED')) {
           clearInterval(poll)
           store.setRunning(false)
           const runs = await listRunsIPC.invoke('guard:listRuns')
-          store.setRuns(runs)
+          if (Array.isArray(runs)) store.setRuns(runs)
           store.setSelectedRunId(runId)
           const findings = await getFindingsIPC.invoke('guard:getFindings', runId)
-          store.setFindings(findings)
+          if (Array.isArray(findings)) store.setFindings(findings)
         }
       }, 1500)
     } catch (e) {

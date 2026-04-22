@@ -49,14 +49,14 @@ const STATUS_LABELS: Record<string, string> = {
   failed: 'Failed',
 }
 
-const ROLE_ICONS: Record<string, string> = {
-  coordinator: '⚡',
-  scout: '🔍',
-  builder: '🔨',
-  reviewer: '👁',
-  tester: '🧪',
-  docwriter: '📝',
-  architect: '🏗',
+const ROLE_LABELS: Record<string, string> = {
+  coordinator: 'coord',
+  scout: 'scout',
+  builder: 'build',
+  reviewer: 'rev',
+  tester: 'test',
+  docwriter: 'docs',
+  architect: 'arch',
 }
 
 function fmt(ts: number): string {
@@ -77,6 +77,7 @@ export function SwarmPanel() {
   const listIPC = useIPC<'swarm:listSessions'>()
   const startIPC = useIPC<'swarm:start'>()
   const stopIPC = useIPC<'swarm:stop'>()
+  const createIPC = useIPC<'swarm:create'>()
 
   const selectedSession = useMemo(
     () => sessions.find(s => s.id === selectedId) ?? null,
@@ -114,8 +115,7 @@ export function SwarmPanel() {
   const handleLaunch = useCallback(async () => {
     if (!goalText.trim()) return
     try {
-      // Step 1: create session to obtain a real ID
-      const session: SwarmSession = await window.nexusAPI.invoke('swarm:create', {
+      const session = await createIPC.invoke('swarm:create', {
         maxAgents: agentCount,
         maxRounds: 10,
         consensusThreshold: 0.75,
@@ -123,18 +123,21 @@ export function SwarmPanel() {
         enableReflection: true,
       }, goalText.trim())
 
-      // Step 2: start the created session
-      await startIPC.invoke('swarm:start', session)
+      if (!session || !('id' in session)) {
+        console.error('[SwarmPanel] swarm:create returned invalid response:', session)
+        return
+      }
 
+      await startIPC.invoke('swarm:start', session)
       setSessions(prev => [...prev, session])
       setSelectedId(session.id)
       setGoalText('')
       setAgentCount(4)
       setShowModal(false)
     } catch (err) {
-      console.error('Failed to start swarm session:', err)
+      console.error('[SwarmPanel] Failed to start swarm session:', err)
     }
-  }, [startIPC, goalText, agentCount])
+  }, [createIPC, startIPC, goalText, agentCount])
 
   const handleStop = useCallback(async (sessionId: string) => {
     try {
@@ -255,7 +258,7 @@ export function SwarmPanel() {
       <div className={styles.detail}>
         {!selectedSession ? (
           <div className={styles.emptyDetail}>
-            <div className={styles.emptyIcon}>⚡</div>
+            <div className={styles.emptyIcon}>—</div>
             <div className={styles.emptyTitle}>No session selected</div>
             <div className={styles.emptyText}>Create a new swarm session to get started</div>
             <button className={styles.emptyBtn} onClick={() => setShowModal(true)}>
@@ -328,7 +331,7 @@ export function SwarmPanel() {
                   <div className={styles.sectionTitle}>
                     Recent Output ({allMessages.length} messages)
                     {toolCount > 0 && (
-                      <span className={styles.toolCountBadge}>🔧 {toolCount} tool{toolCount !== 1 ? 's' : ''} used</span>
+                      <span className={styles.toolCountBadge}>{toolCount} tool{toolCount !== 1 ? 's' : ''} used</span>
                     )}
                   </div>
                   <div className={styles.messageLog}>
@@ -340,7 +343,7 @@ export function SwarmPanel() {
                           key={i}
                           className={`${styles.messageItem} ${isToolCall ? styles.messageItemTool : ''}`}
                         >
-                          {isToolCall && <span className={styles.toolIcon}>🔧 </span>}
+                          {isToolCall && <span className={styles.toolIcon}>[tool] </span>}
                           {display}
                         </div>
                       )
@@ -358,11 +361,11 @@ export function SwarmPanel() {
               ) : (
                 <div className={styles.agentGrid}>
                   {selectedSession.state.agentIds.map((agentId, i) => {
-                    const roles = Object.keys(ROLE_ICONS)
+                    const roles = Object.keys(ROLE_LABELS)
                     const role = roles[i % roles.length]
                     return (
                       <div key={agentId} className={styles.agentCard}>
-                        <div className={styles.agentIcon}>{ROLE_ICONS[role]}</div>
+                        <div className={styles.agentIcon}>{ROLE_LABELS[role] ?? role}</div>
                         <div className={styles.agentInfo}>
                           <div className={styles.agentRole}>{role}</div>
                           <div className={styles.agentId}>{agentId.slice(0, 8)}</div>

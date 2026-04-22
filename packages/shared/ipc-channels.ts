@@ -110,9 +110,6 @@ export interface IpcEvents {
   'memory:delete': (id: string) => void
 
   // voice
-  'voice:start': (mode: VoiceMode) => void
-  'voice:stop': () => void
-  'voice:tts': (request: TTSRequest) => Uint8Array
   'voice:getConfig': () => VoiceConfig
   'voice:setConfig': (config: VoiceConfig) => void
   'voice:startSession': () => { sessionId: string }
@@ -144,8 +141,6 @@ export interface IpcEvents {
   'guard:setPolicy': (policy: GuardPolicy) => void
 
   // bench
-  'bench:run': (reportId: string) => BenchReport
-  'bench:getReport': (reportId: string) => BenchReport
   'bench:listTasks': (dimension?: BenchDimension) => BenchTask[]
   'bench:listModels': () => Array<{ id: string; provider: string; name: string }>
   'bench:runTask': (taskId: string, config: BenchRunConfig) => BenchRunResult
@@ -213,4 +208,11 @@ export interface IpcRendererEvents {
 
   // sync
   'sync:statusChange': (summary: SyncSummary) => void
+
+  // streaming (ModelRouter)
+  'stream:data': (payload: { id: string; delta: string }) => void
+  'stream:end': (payload: { id: string }) => void
+
+  // app health
+  'app:serviceHealth': (payload: { failed: string[] }) => void
 }

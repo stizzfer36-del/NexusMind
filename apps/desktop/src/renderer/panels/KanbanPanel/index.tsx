@@ -26,6 +26,8 @@ export function KanbanPanel() {
   const [newTaskTitle, setNewTaskTitle] = useState('')
   const [dragOverColumn, setDragOverColumn] = useState<ColumnId | null>(null)
   const dragTaskRef = useRef<string | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   const listIPC = useIPC<'kanban:listTasks'>()
   const createIPC = useIPC<'kanban:createTask'>()
@@ -35,7 +37,11 @@ export function KanbanPanel() {
 
   // Load tasks
   useEffect(() => {
-    listIPC.invoke('kanban:listTasks').then(setTasks).catch(console.error)
+    setLoading(true)
+    listIPC.invoke('kanban:listTasks')
+      .then(res => { if (Array.isArray(res)) setTasks(res) })
+      .catch(err => setLoadError(String(err)))
+      .finally(() => setLoading(false))
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Listen for real-time task updates
@@ -79,8 +85,10 @@ export function KanbanPanel() {
     dragTaskRef.current = null
 
     try {
-      const updatedTask = await moveIPC.invoke('kanban:moveTask', { taskId, column: col as any })
-      setTasks(prev => prev.map(t => t.id === taskId ? updatedTask : t))
+      const result = await moveIPC.invoke('kanban:moveTask', { taskId, column: col as any })
+      if (result && 'id' in result) {
+        setTasks(prev => prev.map(t => t.id === taskId ? result as Task : t))
+      }
     } catch (err) {
       console.error('Failed to move task:', err)
     }
@@ -89,7 +97,7 @@ export function KanbanPanel() {
   const handleAddTask = useCallback(async (col: ColumnId) => {
     if (!newTaskTitle.trim()) return
     try {
-      const task = await createIPC.invoke('kanban:createTask', {
+      const result = await createIPC.invoke('kanban:createTask', {
         title: newTaskTitle.trim(),
         description: '',
         status: 'todo' as any,
@@ -98,7 +106,9 @@ export function KanbanPanel() {
         tags: [],
         priority: 'medium',
       })
-      setTasks(prev => [...prev, task])
+      if (result && 'id' in result) {
+        setTasks(prev => [...prev, result as Task])
+      }
       setNewTaskTitle('')
       setAddingToColumn(null)
     } catch (err) {
@@ -119,8 +129,10 @@ export function KanbanPanel() {
   const handleSaveEdit = useCallback(async () => {
     if (!editingTask) return
     try {
-      const updated = await updateIPC.invoke('kanban:updateTask', editingTask)
-      setTasks(prev => prev.map(t => t.id === updated.id ? updated : t))
+      const result = await updateIPC.invoke('kanban:updateTask', editingTask)
+      if (result && 'id' in result) {
+        setTasks(prev => prev.map(t => t.id === (result as Task).id ? result as Task : t))
+      }
       setEditingTask(null)
     } catch (err) {
       console.error('Failed to update task:', err)
@@ -129,95 +141,106 @@ export function KanbanPanel() {
 
   return (
     <div className={styles.root}>
-      <div className={styles.board}>
-        {COLUMNS.map(col => {
-          const colTasks = getColumnTasks(col.id)
-          return (
-            <div
-              key={col.id}
-              className={`${styles.column} ${dragOverColumn === col.id ? styles.columnDragOver : ''}`}
-              onDragOver={e => onDragOver(e, col.id)}
-              onDragLeave={onDragLeave}
-              onDrop={e => onDrop(e, col.id)}
-            >
-              {/* Column header */}
-              <div className={styles.columnHeader}>
-                <div className={styles.columnTitle}>
-                  <span className={styles.columnDot} style={{ background: col.accent }} />
-                  <span>{col.label}</span>
-                  <span className={styles.columnCount}>{colTasks.length}</span>
-                </div>
-                <button
-                  className={styles.addBtn}
-                  onClick={() => {
-                    setAddingToColumn(col.id)
-                    setNewTaskTitle('')
-                  }}
-                  title="Add task"
-                >
-                  +
-                </button>
-              </div>
-
-              {/* Add task form */}
-              {addingToColumn === col.id && (
-                <div className={styles.addForm}>
-                  <input
-                    className={styles.addInput}
-                    placeholder="Task title…"
-                    value={newTaskTitle}
-                    onChange={e => setNewTaskTitle(e.target.value)}
-                    onKeyDown={e => {
-                      if (e.key === 'Enter') handleAddTask(col.id)
-                      if (e.key === 'Escape') setAddingToColumn(null)
+      {loading ? (
+        <div className={styles.boardLoading}>
+          {[0,1,2,3].map(i => <div key={i} className={styles.columnSkeleton} />)}
+        </div>
+      ) : loadError ? (
+        <div className={styles.boardError}>
+          <span>Kanban service unavailable</span>
+          <span className={styles.boardErrorDetail}>{loadError}</span>
+        </div>
+      ) : (
+        <div className={styles.board}>
+          {COLUMNS.map(col => {
+            const colTasks = getColumnTasks(col.id)
+            return (
+              <div
+                key={col.id}
+                className={`${styles.column} ${dragOverColumn === col.id ? styles.columnDragOver : ''}`}
+                onDragOver={e => onDragOver(e, col.id)}
+                onDragLeave={onDragLeave}
+                onDrop={e => onDrop(e, col.id)}
+              >
+                {/* Column header */}
+                <div className={styles.columnHeader}>
+                  <div className={styles.columnTitle}>
+                    <span className={styles.columnDot} style={{ background: col.accent }} />
+                    <span>{col.label}</span>
+                    <span className={styles.columnCount}>{colTasks.length}</span>
+                  </div>
+                  <button
+                    className={styles.addBtn}
+                    onClick={() => {
+                      setAddingToColumn(col.id)
+                      setNewTaskTitle('')
                     }}
-                    autoFocus
-                  />
-                  <div className={styles.addActions}>
-                    <button className={styles.addConfirm} onClick={() => handleAddTask(col.id)}>Add</button>
-                    <button className={styles.addCancel} onClick={() => setAddingToColumn(null)}>Cancel</button>
-                  </div>
-                </div>
-              )}
-
-              {/* Task cards */}
-              <div className={styles.cards}>
-                {colTasks.map(task => (
-                  <div
-                    key={task.id}
-                    className={styles.card}
-                    draggable
-                    onDragStart={e => onDragStart(e, task.id)}
-                    onClick={() => setEditingTask(task)}
-                    role="article"
+                    title="Add task"
                   >
-                    <div className={styles.cardTitle}>{task.title}</div>
-                    <div className={styles.cardMeta}>
-                      <span
-                        className={styles.priorityBadge}
-                        style={{ color: PRIORITY_COLORS[task.priority], borderColor: PRIORITY_COLORS[task.priority] }}
-                      >
-                        {task.priority}
-                      </span>
-                      {task.tags.map(tag => (
-                        <span key={tag} className={styles.tag}>{tag}</span>
-                      ))}
+                    +
+                  </button>
+                </div>
+
+                {/* Add task form */}
+                {addingToColumn === col.id && (
+                  <div className={styles.addForm}>
+                    <input
+                      className={styles.addInput}
+                      placeholder="Task title…"
+                      value={newTaskTitle}
+                      onChange={e => setNewTaskTitle(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') handleAddTask(col.id)
+                        if (e.key === 'Escape') setAddingToColumn(null)
+                      }}
+                      autoFocus
+                    />
+                    <div className={styles.addActions}>
+                      <button className={styles.addConfirm} onClick={() => handleAddTask(col.id)}>Add</button>
+                      <button className={styles.addCancel} onClick={() => setAddingToColumn(null)}>Cancel</button>
                     </div>
-                    {task.assignee && (
-                      <div className={styles.cardAssignee}>
-                        <span className={styles.assigneeAvatar}>
-                          {task.assignee.charAt(0).toUpperCase()}
-                        </span>
-                        <span className={styles.assigneeName}>{task.assignee}</span>
-                      </div>
-                    )}
                   </div>
-                ))}
+                )}
+
+                {/* Task cards */}
+                <div className={styles.cards}>
+                  {colTasks.map(task => (
+                    <div
+                      key={task.id}
+                      className={styles.card}
+                      draggable
+                      onDragStart={e => onDragStart(e, task.id)}
+                      onClick={() => setEditingTask(task)}
+                      role="article"
+                    >
+                      <div className={styles.cardTitle}>{task.title}</div>
+                      <div className={styles.cardMeta}>
+                        <span
+                          className={styles.priorityBadge}
+                          style={{ color: PRIORITY_COLORS[task.priority], borderColor: PRIORITY_COLORS[task.priority] }}
+                        >
+                          {task.priority}
+                        </span>
+                        {task.tags.map(tag => (
+                          <span key={tag} className={styles.tag}>{tag}</span>
+                        ))}
+                      </div>
+                      {task.assignee && (
+                        <div className={styles.cardAssignee}>
+                          <span className={styles.assigneeAvatar}>
+                            {task.assignee.charAt(0).toUpperCase()}
+                          </span>
+                          <span className={styles.assigneeName}>{task.assignee}</span>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
-          )
-        })}
-      </div>
+            )
+          })}
+        </div>
+      )}
 
       {/* Edit modal */}
       {editingTask && (

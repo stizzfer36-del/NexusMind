@@ -18,8 +18,8 @@ export function useGraph() {
       templatesIPC.invoke('graph:templates'),
     ])
       .then(([dags, templates]) => {
-        store.setDags(dags)
-        store.setTemplates(templates)
+        if (Array.isArray(dags)) store.setDags(dags)
+        if (Array.isArray(templates)) store.setTemplates(templates)
       })
       .catch(err => store.setError(String(err)))
       .finally(() => store.setLoading(false))
@@ -27,7 +27,7 @@ export function useGraph() {
 
   const loadDags = async () => {
     const dags = await listIPC.invoke('graph:list')
-    store.setDags(dags)
+    if (Array.isArray(dags)) store.setDags(dags)
   }
 
   const selectDag = (id: string) => {
