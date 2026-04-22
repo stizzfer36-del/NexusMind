@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "lib": ["ES2022"],
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "declaration": false,
+    "outDir": "dist",
+    "paths": {
+      "@nexusmind/shared": ["../shared/types/index.ts"],
+      "@nexusmind/shared/ipc-channels": ["../shared/ipc-channels.ts"]
+    }
+  },
+  "include": ["bin/**/*", "src/**/*"],
+  "exclude": ["node_modules", "dist"]
+}

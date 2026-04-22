@@ -1,0 +1,21 @@
+{
+  "name": "@nexusmind/cli",
+  "version": "0.0.0",
+  "private": true,
+  "description": "NexusMind CLI — run swarms, graphs, benches, and guards from the terminal",
+  "type": "commonjs",
+  "bin": {
+    "nexus": "dist/cli/bin/nexus.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@nexusmind/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "typescript": "^5.5.0"
+  }
+}

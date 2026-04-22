@@ -79,6 +79,19 @@ importers:
         specifier: ^5.4.0
         version: 5.4.21(@types/node@20.19.39)
 
+  packages/cli:
+    dependencies:
+      '@nexusmind/shared':
+        specifier: workspace:*
+        version: link:../shared
+    devDependencies:
+      '@types/node':
+        specifier: ^20.14.0
+        version: 20.19.39
+      typescript:
+        specifier: ^5.5.0
+        version: 5.9.3
+
   packages/shared:
     devDependencies:
       typescript:
