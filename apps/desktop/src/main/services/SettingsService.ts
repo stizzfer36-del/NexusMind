@@ -8,6 +8,7 @@ const DEFAULTS = {
   windowBounds: { width: 1280, height: 800 } as { width: number; height: number; x?: number; y?: number },
   telemetryEnabled: false,
   onboardingComplete: false,
+  workspacePath: '',
 }
 
 export class SettingsService {
@@ -42,6 +43,15 @@ export class SettingsService {
     this.db.getDb()
       .prepare('DELETE FROM settings WHERE key = ?')
       .run(key)
+  }
+
+  getWorkspacePath(): string | null {
+    const path = this.get<string>('workspacePath', '')
+    return path || null
+  }
+
+  setWorkspacePath(path: string): void {
+    this.set('workspacePath', path)
   }
 
   getAll(): Record<string, unknown> {

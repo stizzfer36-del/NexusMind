@@ -200,10 +200,10 @@ export class SwarmService {
     // Edges
     graph.addEdge({ from: 'coordinator', to: 'builder' })
     graph.addEdge({ from: 'builder', to: 'reviewer' })
-    graph.addEdge({ from: 'reviewer', to: 'builder', condition: (s) => !s.reviewPassed && s.currentRound < s.maxRounds })
-    graph.addEdge({ from: 'reviewer', to: 'tester', condition: (s) => s.reviewPassed })
-    graph.addEdge({ from: 'tester', to: 'builder', condition: (s) => !s.testPassed && s.currentRound < s.maxRounds })
-    graph.addEdge({ from: 'tester', to: 'docwriter', condition: (s) => s.testPassed })
+    graph.addEdge({ from: 'reviewer', to: 'builder', condition: (s) => !s.cancelled && !s.reviewPassed && s.currentRound < s.maxRounds })
+    graph.addEdge({ from: 'reviewer', to: 'tester', condition: (s) => !s.cancelled && s.reviewPassed })
+    graph.addEdge({ from: 'tester', to: 'builder', condition: (s) => !s.cancelled && !s.testPassed && s.currentRound < s.maxRounds })
+    graph.addEdge({ from: 'tester', to: 'docwriter', condition: (s) => !s.cancelled && s.testPassed })
     graph.addEdge({ from: 'docwriter', to: 'END' })
 
     graph.setEntry('coordinator')
@@ -226,10 +226,22 @@ export class SwarmService {
       })
     }
 
+    // Timeout guard
+    let timeoutId: ReturnType<typeof setTimeout> | null = null
+    if (session.config.timeoutMs > 0) {
+      timeoutId = setTimeout(() => {
+        initialGraphState.cancelled = true
+        this.cancelFlags.set(id, true)
+        console.log(`[SwarmService] Session ${id} — timeout reached`)
+      }, session.config.timeoutMs)
+    }
+
     try {
       await graph.run(initialGraphState, onStateChange)
     } catch (err) {
       console.error(`[SwarmService] Session ${id} — graph error:`, err)
+    } finally {
+      if (timeoutId) clearTimeout(timeoutId)
     }
 
     recorder?.endSession(id)
@@ -255,7 +267,10 @@ export class SwarmService {
   ): Promise<AgentGraphState> {
     // TODO: wire LLM here (v0.0.1 stub — actual LLM routing below)
     // Check cancellation first
-    if (state.cancelled) return state
+    if (state.cancelled || this.cancelFlags.get(state.sessionId)) {
+      state.cancelled = true
+      return state
+    }
 
     const registry = ServiceRegistry.getInstance()
 
@@ -317,6 +332,12 @@ export class SwarmService {
     } catch (err) {
       console.error(`[SwarmService] executeAgentRole(${role}) — model error on task "${task.title}":`, err)
       await this._delay(500)
+      return state
+    }
+
+    // Check cancellation after streaming
+    if (state.cancelled || this.cancelFlags.get(state.sessionId)) {
+      state.cancelled = true
       return state
     }
 

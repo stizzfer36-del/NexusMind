@@ -28,6 +28,17 @@ export class ErrorBoundary extends React.Component<Props, State> {
       info
     )
     this.setState({ info })
+
+    // Emit crash report to main process for persistent logging
+    if (typeof window !== 'undefined' && window.electronAPI?.send) {
+      window.electronAPI.send('app:rendererCrash', {
+        panelName: this.props.panelName,
+        message: error.message,
+        stack: error.stack,
+        componentStack: info.componentStack,
+        timestamp: Date.now(),
+      })
+    }
   }
 
   private handleCopy = () => {

@@ -51,6 +51,7 @@ interface OnboardingPanelProps {
 
 export function OnboardingPanel({ onComplete }: OnboardingPanelProps) {
   const [step, setStep] = useState(1)
+  const [workspacePath, setWorkspacePath] = useState('')
   const [apiKeys, setApiKeys] = useState({
     openai: '',
     anthropic: '',
@@ -61,8 +62,28 @@ export function OnboardingPanel({ onComplete }: OnboardingPanelProps) {
 
   const keychainSet = useIPC<'keychain:set'>()
   const settingsSet = useIPC<'settings:set'>()
+  const dialogOpen = useIPC<'dialog:openDirectory'>()
 
-  // ── Step 2 → 3: save API keys ──────────────────────────────────────────────
+  // ── Step 2: pick workspace folder ───────────────────────────────────────────
+  const handlePickWorkspace = useCallback(async () => {
+    try {
+      const result = await dialogOpen.invoke('dialog:openDirectory')
+      if (result) setWorkspacePath(result)
+    } catch (err) {
+      console.error('OnboardingPanel: failed to open directory dialog', err)
+    }
+  }, [dialogOpen])
+
+  const handleSaveWorkspace = useCallback(async () => {
+    try {
+      await settingsSet.invoke('settings:set', { key: 'workspacePath', value: workspacePath })
+    } catch (err) {
+      console.error('OnboardingPanel: failed to save workspacePath', err)
+    }
+    setStep(3)
+  }, [settingsSet, workspacePath])
+
+  // ── Step 3: save API keys ──────────────────────────────────────────────────
   const handleSaveKeys = useCallback(async () => {
     const saves: Promise<unknown>[] = []
 
@@ -82,20 +103,20 @@ export function OnboardingPanel({ onComplete }: OnboardingPanelProps) {
       console.error('OnboardingPanel: failed to save keys', err)
     }
 
-    setStep(3)
+    setStep(4)
   }, [keychainSet, settingsSet, apiKeys])
 
-  // ── Step 3 → 4: save default model ────────────────────────────────────────
+  // ── Step 4: save default model ──────────────────────────────────────────────
   const handleSaveModel = useCallback(async () => {
     try {
       await settingsSet.invoke('settings:set', { key: 'defaultModel', value: defaultModel })
     } catch (err) {
       console.error('OnboardingPanel: failed to save model', err)
     }
-    setStep(4)
+    setStep(5)
   }, [settingsSet, defaultModel])
 
-  // ── Step 4: finish onboarding ──────────────────────────────────────────────
+  // ── Step 5: finish onboarding ───────────────────────────────────────────────
   const handleLaunch = useCallback(async () => {
     setSaving(true)
     try {
@@ -109,7 +130,7 @@ export function OnboardingPanel({ onComplete }: OnboardingPanelProps) {
   return (
     <div className={styles.root}>
       <div className={styles.card}>
-        <StepDots current={step} total={4} />
+        <StepDots current={step} total={5} />
 
         {/* ── Step 1: Welcome ─────────────────────────────────────────── */}
         {step === 1 && (
@@ -121,7 +142,7 @@ export function OnboardingPanel({ onComplete }: OnboardingPanelProps) {
             <p className={styles.subtitle}>Your AI Swarm IDE</p>
             <p className={styles.desc}>
               NexusMind orchestrates teams of AI agents to tackle complex
-              development tasks. Set up your API keys to get started.
+              development tasks. Set up your workspace to get started.
             </p>
             <div className={`${styles.btnRow} ${styles.btnRowCenter}`}>
               <button
@@ -135,8 +156,50 @@ export function OnboardingPanel({ onComplete }: OnboardingPanelProps) {
           </>
         )}
 
-        {/* ── Step 2: API Keys ─────────────────────────────────────────── */}
+        {/* ── Step 2: Workspace Path ──────────────────────────────────── */}
         {step === 2 && (
+          <>
+            <h2 className={styles.stepTitle}>Choose Workspace</h2>
+            <p className={styles.stepSubtitle}>Select a folder where your projects will live</p>
+
+            <div className={styles.apiKeyGroup}>
+              <label className={styles.apiKeyLabel} htmlFor="workspace-path">Workspace Folder</label>
+              <input
+                id="workspace-path"
+                type="text"
+                className={styles.apiKeyInput}
+                placeholder="/path/to/workspace"
+                value={workspacePath}
+                onChange={e => setWorkspacePath(e.target.value)}
+                readOnly
+              />
+            </div>
+
+            <div className={`${styles.btnRow} ${styles.btnRowCenter}`} style={{ marginBottom: 28 }}>
+              <button
+                className={styles.btnSecondary}
+                onClick={handlePickWorkspace}
+                disabled={dialogOpen.loading}
+              >
+                {dialogOpen.loading ? 'Opening…' : 'Browse…'}
+              </button>
+            </div>
+
+            <div className={styles.btnRow}>
+              <button className={styles.btnSecondary} onClick={() => setStep(1)}>Back</button>
+              <button
+                className={styles.btnPrimary}
+                onClick={handleSaveWorkspace}
+                disabled={!workspacePath || settingsSet.loading}
+              >
+                Next
+              </button>
+            </div>
+          </>
+        )}
+
+        {/* ── Step 3: API Keys ─────────────────────────────────────────── */}
+        {step === 3 && (
           <>
             <h2 className={styles.stepTitle}>Add API Keys</h2>
             <p className={styles.stepSubtitle}>Keys are stored securely in the system keychain</p>
@@ -184,7 +247,7 @@ export function OnboardingPanel({ onComplete }: OnboardingPanelProps) {
             </div>
 
             <div className={styles.btnRow}>
-              <button className={styles.btnSecondary} onClick={() => setStep(1)}>Back</button>
+              <button className={styles.btnSecondary} onClick={() => setStep(2)}>Back</button>
               <button
                 className={styles.btnPrimary}
                 onClick={handleSaveKeys}
@@ -196,8 +259,8 @@ export function OnboardingPanel({ onComplete }: OnboardingPanelProps) {
           </>
         )}
 
-        {/* ── Step 3: Default Model ────────────────────────────────────── */}
-        {step === 3 && (
+        {/* ── Step 4: Default Model ────────────────────────────────────── */}
+        {step === 4 && (
           <>
             <h2 className={styles.stepTitle}>Choose Default Model</h2>
             <p className={styles.stepSubtitle}>This model will be used for agent tasks by default</p>
@@ -218,7 +281,7 @@ export function OnboardingPanel({ onComplete }: OnboardingPanelProps) {
             </div>
 
             <div className={styles.btnRow}>
-              <button className={styles.btnSecondary} onClick={() => setStep(2)}>Back</button>
+              <button className={styles.btnSecondary} onClick={() => setStep(3)}>Back</button>
               <button
                 className={styles.btnPrimary}
                 onClick={handleSaveModel}
@@ -230,8 +293,8 @@ export function OnboardingPanel({ onComplete }: OnboardingPanelProps) {
           </>
         )}
 
-        {/* ── Step 4: Done ─────────────────────────────────────────────── */}
-        {step === 4 && (
+        {/* ── Step 5: Done ─────────────────────────────────────────────── */}
+        {step === 5 && (
           <>
             <h2 className={styles.stepTitle} style={{ textAlign: 'center' }}>You're all set!</h2>
             <p className={styles.stepSubtitle} style={{ textAlign: 'center', marginBottom: 24 }}>

@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto'
 import {
   ModelProvider,
   ModelCapability,
+  AgentRole,
   type ModelId,
   type ModelConfig,
   type StreamChunk,
@@ -9,6 +10,7 @@ import {
 import type { AgentMessage } from '@nexusmind/shared'
 import { ServiceRegistry, SERVICE_TOKENS } from '../ServiceRegistry.js'
 import type { KeychainService } from './KeychainService.js'
+import { ContextService } from './ContextService.js'
 
 // ---------------------------------------------------------------------------
 // SSE parsing helper
@@ -270,6 +272,41 @@ export class ModelRouter {
   }
 
   // -------------------------------------------------------------------------
+  // System context injection
+  // -------------------------------------------------------------------------
+
+  private _injectSystemContext(messages: AgentMessage[]): AgentMessage[] {
+    let contextText = ''
+    try {
+      const ctx = ServiceRegistry.getInstance().resolve<ContextService>(SERVICE_TOKENS.ContextService)
+      contextText = ctx.buildSystemContext()
+    } catch {
+      // ContextService not available — proceed without context
+    }
+
+    if (!contextText) return messages
+
+    const systemMessage: AgentMessage = {
+      id: randomUUID(),
+      agentId: 'system',
+      role: AgentRole.SYSTEM,
+      content: contextText,
+      timestamp: Date.now(),
+    }
+
+    // Insert after any existing system messages, or at the front
+    const firstNonSystem = messages.findIndex((m) => m.role !== AgentRole.SYSTEM)
+    if (firstNonSystem === -1) {
+      return [...messages, systemMessage]
+    }
+    return [
+      ...messages.slice(0, firstNonSystem),
+      systemMessage,
+      ...messages.slice(firstNonSystem),
+    ]
+  }
+
+  // -------------------------------------------------------------------------
   // route — streaming chat completion
   // -------------------------------------------------------------------------
 
@@ -279,18 +316,21 @@ export class ModelRouter {
   ): AsyncGenerator<StreamChunk> {
     const apiKey = await this.keychain.getApiKey(config.provider)
 
+    // Inject system context from ContextService as the first SYSTEM message
+    const enrichedMessages = this._injectSystemContext(messages)
+
     switch (config.provider) {
       case ModelProvider.OPENAI:
-        yield* this._routeOpenAI(config, messages, apiKey)
+        yield* this._routeOpenAI(config, enrichedMessages, apiKey)
         break
       case ModelProvider.ANTHROPIC:
-        yield* this._routeAnthropic(config, messages, apiKey)
+        yield* this._routeAnthropic(config, enrichedMessages, apiKey)
         break
       case ModelProvider.LOCAL:
-        yield* this._routeLocal(config, messages)
+        yield* this._routeLocal(config, enrichedMessages)
         break
       case ModelProvider.OPENROUTER:
-        yield* this._routeOpenRouter(config, messages, apiKey)
+        yield* this._routeOpenRouter(config, enrichedMessages, apiKey)
         break
       default:
         yield {
@@ -663,6 +703,31 @@ export class ModelRouter {
       console.error('[ModelRouter] OpenRouter stream error:', err)
       yield _errorChunk(config.id, String(err))
     }
+  }
+
+  // -------------------------------------------------------------------------
+  // Dedicated streaming entry-point for IPC
+  // -------------------------------------------------------------------------
+
+  async *streamChat(
+    modelId: ModelId,
+    messages: Array<{ role: string; content: string }>,
+  ): AsyncGenerator<StreamChunk> {
+    const modelConfig = KNOWN_MODELS.find((m) => m.id === modelId)
+    if (!modelConfig) {
+      yield _errorChunk(modelId, `Unknown model: ${modelId}`)
+      return
+    }
+
+    const agentMessages: AgentMessage[] = messages.map((m) => ({
+      id: randomUUID(),
+      agentId: 'ipc',
+      role: m.role as AgentMessage['role'],
+      content: m.content,
+      timestamp: Date.now(),
+    }))
+
+    yield* this.route(modelConfig, agentMessages)
   }
 
   // -------------------------------------------------------------------------

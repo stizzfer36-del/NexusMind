@@ -6,6 +6,8 @@ export interface ElectronAPI {
     ...args: Parameters<IpcEvents[K]>
   ): Promise<ReturnType<IpcEvents[K]>>
 
+  send<K extends keyof IpcEvents>(channel: K, ...args: Parameters<IpcEvents[K]>): void
+
   on<K extends keyof IpcRendererEvents>(
     channel: K,
     callback: IpcRendererEvents[K]

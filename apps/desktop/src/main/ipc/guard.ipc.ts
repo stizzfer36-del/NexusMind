@@ -11,5 +11,7 @@ export function createGuardIpcHandlers(
     'guard:getFindings': (_event: any, runId: string) => service.getFindings(runId),
     'guard:getPolicy': (_event: any) => service.getPolicy(),
     'guard:setPolicy': (_event: any, policy: GuardPolicy) => service.setPolicy(policy),
+    'guard:approvalResponse': (_event: any, payload: { requestId: string; approved: boolean }) =>
+      service.resolveApproval(payload.requestId, payload.approved),
   }
 }

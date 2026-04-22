@@ -1,0 +1,146 @@
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(2px);
+}
+
+.modal {
+  width: 420px;
+  max-width: 90vw;
+  background: var(--color-bg, #0d0d0d);
+  border: 1px solid var(--color-border, rgba(255, 255, 255, 0.12));
+  border-radius: 10px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid var(--color-border, rgba(255, 255, 255, 0.08));
+}
+
+.shieldIcon {
+  font-size: 20px;
+  opacity: 0.9;
+}
+
+.title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text, #e8e8e8);
+}
+
+.body {
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.actionRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.actionLabel {
+  color: var(--color-text-muted);
+  font-weight: 500;
+}
+
+.actionValue {
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+.severityBadge {
+  align-self: flex-start;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 4px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.severityCritical {
+  background: rgba(249, 115, 22, 0.2);
+  color: #f97316;
+}
+.severityHigh {
+  background: rgba(239, 68, 68, 0.18);
+  color: #ef4444;
+}
+.severityMedium {
+  background: rgba(245, 158, 11, 0.18);
+  color: #f59e0b;
+}
+.severityLow {
+  background: rgba(99, 102, 241, 0.15);
+  color: #818cf8;
+}
+
+.reason {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 12px 20px 16px;
+  border-top: 1px solid var(--color-border, rgba(255, 255, 255, 0.08));
+}
+
+.rejectBtn {
+  padding: 6px 16px;
+  border-radius: 6px;
+  border: 1px solid var(--color-border, rgba(255, 255, 255, 0.15));
+  background: transparent;
+  color: var(--color-text);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.rejectBtn:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+.rejectBtn:focus-visible {
+  outline: 2px solid var(--color-accent, #7c6af7);
+  outline-offset: 2px;
+}
+
+.approveBtn {
+  padding: 6px 16px;
+  border-radius: 6px;
+  border: none;
+  background: var(--color-accent, #7c6af7);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.approveBtn:hover {
+  background: #6b5ce7;
+}
+.approveBtn:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}

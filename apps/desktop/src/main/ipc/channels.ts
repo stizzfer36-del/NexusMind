@@ -16,6 +16,10 @@ export const channels: HandlerMap = {
   'terminal:write': stub,
   'terminal:resize': stub,
   'terminal:kill': stub,
+  'pty:create': stub,
+  'pty:write': stub,
+  'pty:resize': stub,
+  'pty:close': stub,
 
   // swarm
   'swarm:create': stub,
@@ -23,9 +27,11 @@ export const channels: HandlerMap = {
   'swarm:start': stub,
   'swarm:stop': stub,
   'swarm:getState': stub,
+  'swarm:getAgents': stub,
 
   // kanban / tasks
   'kanban:listTasks': stub,
+  'kanban:getTasks': stub,
   'kanban:createTask': stub,
   'kanban:updateTask': stub,
   'kanban:deleteTask': stub,
@@ -36,6 +42,7 @@ export const channels: HandlerMap = {
   'models:getConfig': stub,
   'models:streamChat': stub,
   'model:validate': stub,
+  'model:stream': stub,
 
   // settings
   'settings:get': stub,
@@ -53,6 +60,7 @@ export const channels: HandlerMap = {
   'mcp:addServer': stub,
   'mcp:removeServer': stub,
   'mcp:executeTool': stub,
+  'mcp:getServerStatus': stub,
 
   // memory
   'memory:list': stub,
@@ -90,6 +98,7 @@ export const channels: HandlerMap = {
   'guard:getFindings': stub,
   'guard:getPolicy': stub,
   'guard:setPolicy': stub,
+  'guard:approvalResponse': stub,
 
   // bench
   'bench:listTasks': stub,
@@ -107,4 +116,12 @@ export const channels: HandlerMap = {
   'sync:setConfig': stub,
   'sync:getSummary': stub,
   'sync:trigger': stub,
+
+  // dialog
+  'dialog:openDirectory': stub,
+
+  // context
+  'context:setActiveFile': stub,
+  'context:getActiveFile': stub,
+  'context:getSystemContext': stub,
 }

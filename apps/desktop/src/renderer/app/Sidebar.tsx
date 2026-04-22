@@ -93,6 +93,14 @@ const MicrophoneIcon = () => (
   </svg>
 )
 
+const AgentIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+    <circle cx="8" cy="5" r="2.5" stroke="currentColor" strokeWidth="1.2"/>
+    <path d="M3 14c0-2.8 2.2-5 5-5s5 2.2 5 5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+    <path d="M12 3l1.5-1.5M2.5 1.5L4 3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+  </svg>
+)
+
 const CollapseIcon = ({ collapsed }: { collapsed: boolean }) => (
   <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ transform: collapsed ? 'rotate(180deg)' : 'none', transition: 'transform 150ms ease' }}>
     <path d="M9 3L5 7l4 4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
@@ -103,8 +111,9 @@ const NAV_ITEMS: NavItem[] = [
   { route: 'terminal', label: 'Terminal', shortcut: '⌘1', icon: <TerminalIcon /> },
   { route: 'kanban', label: 'Kanban', shortcut: '⌘2', icon: <KanbanIcon /> },
   { route: 'swarm', label: 'Swarm', shortcut: '⌘3', icon: <SwarmIcon /> },
-  { route: 'memory', label: 'Memory', shortcut: '⌘4', icon: <MemoryIcon /> },
-  { route: 'replay', label: 'Replay', shortcut: '⌘5', icon: <ReplayIcon /> },
+  { route: 'agent', label: 'Agent', shortcut: '⌘4', icon: <AgentIcon /> },
+  { route: 'memory', label: 'Memory', shortcut: '⌘5', icon: <MemoryIcon /> },
+  { route: 'replay', label: 'Replay', shortcut: '⌘6', icon: <ReplayIcon /> },
   { route: 'bench', label: 'Bench', shortcut: '⌘B', icon: <BenchIcon /> },
   { route: 'graph', label: 'Graph', shortcut: '⌘G', icon: <GraphIcon /> },
   { route: 'guard', label: 'Guard', shortcut: '⌘⇧G', icon: <ShieldIcon /> },

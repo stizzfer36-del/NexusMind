@@ -1,4 +1,6 @@
 export { useIPC, useIPCEvent, useServiceHealth } from './useIPC'
+export { usePty } from './usePty'
+export type { PtySession } from './usePty'
 export { useStream } from './useStream'
 export { useShortcut } from './useShortcut'
 export { useTheme } from './useTheme'

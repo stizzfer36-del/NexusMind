@@ -46,11 +46,18 @@ export class PtyManager {
 
       let chunkCounter = 0
       proc.onData((data: string) => {
-        this.pushToWindows('terminal:data', { id, data } satisfies TerminalData)
+        const payload = { id, data } satisfies TerminalData
+        this.pushToWindows('terminal:data', payload)
+        this.pushToWindows('pty:data', payload)
         try {
           const link = ServiceRegistry.getInstance().resolve(SERVICE_TOKENS.LinkService) as any
           link.broadcast({ type: 'pty:data', payload: { id, data } })
         } catch { /* link not ready */ }
+        // Feed to ContextService for system context aggregation
+        try {
+          const ctx = ServiceRegistry.getInstance().resolve(SERVICE_TOKENS.ContextService) as any
+          ctx.appendPtyOutput(id, data)
+        } catch { /* ContextService not ready */ }
         // Sample 1-in-20 PTY chunks for replay recording
         chunkCounter++
         if (chunkCounter % 20 === 0) {
@@ -67,6 +74,7 @@ export class PtyManager {
 
       proc.onExit(({ exitCode }: { exitCode: number; signal?: number }) => {
         this.pushToWindows('terminal:exit', { id, exitCode })
+        this.pushToWindows('pty:exit', { id, exitCode })
         this.sessions.delete(id)
       })
 
@@ -156,6 +164,12 @@ export class PtyManager {
 
       'pty:list': () =>
         this.listSessions(),
+
+      'pty:create': (event: any, shell?: string) =>
+        this.spawn(crypto.randomUUID(), shell || defaultShell(), process.cwd(), 80, 24),
+
+      'pty:close': (event: any, id: string) =>
+        this.kill(id),
     }
   }
 }

@@ -17,6 +17,7 @@ import { GuardPanel } from '../panels/GuardPanel'
 import { VoicePanel } from '../panels/VoicePanel'
 import { OnboardingPanel } from '../panels/OnboardingPanel'
 import { ErrorBoundary } from '../components/ErrorBoundary'
+import { GuardApprovalOverlay } from '../components/GuardApprovalOverlay'
 
 // Catches any render crash in the shell and shows an error instead of blank screen.
 class ShellErrorBoundary extends React.Component<
@@ -94,11 +95,14 @@ function AppShell() {
   console.log('[AppShell] rendering, route=', route)
 
   return (
-    <Layout
-      sidebar={<Sidebar activeRoute={route} onNavigate={navigate} />}
-      main={<Router panels={PANELS} />}
-      modelSelector={<ModelSelector />}
-    />
+    <>
+      <Layout
+        sidebar={<Sidebar activeRoute={route} onNavigate={navigate} />}
+        main={<Router panels={PANELS} />}
+        modelSelector={<ModelSelector />}
+      />
+      <GuardApprovalOverlay />
+    </>
   )
 }
 

@@ -1,8 +1,12 @@
-import { app, Menu } from 'electron'
+import { app, Menu, dialog, ipcMain } from 'electron'
+import fs from 'fs'
+import path from 'path'
+import os from 'os'
 import { WindowManager } from './windows/WindowManager.js'
 import { createMainWindow } from './windows/MainWindow.js'
 import { IPCRouter } from './ipc/IPCRouter.js'
 import { channels } from './ipc/channels.js'
+import { createModelIpcHandlers } from './ipc/model.ipc.js'
 import { DatabaseService } from './services/DatabaseService.js'
 import { SettingsService } from './services/SettingsService.js'
 import { KeychainService } from './services/KeychainService.js'
@@ -19,6 +23,8 @@ import { GuardService } from './services/GuardService.js'
 import { VoiceService } from './services/VoiceService.js'
 import { LinkService } from './services/LinkService.js'
 import { SyncService } from './services/SyncService.js'
+import { FileService } from './services/FileService.js'
+import { ContextService } from './services/ContextService.js'
 
 const failedServices: string[] = []
 
@@ -86,6 +92,12 @@ async function bootstrap(): Promise<void> {
   const syncService = new SyncService()
   await safeInit('SyncService', () => syncService.init())
 
+  const fileService = new FileService()
+  await safeInit('FileService', () => fileService.init())
+
+  const contextService = new ContextService()
+  await safeInit('ContextService', () => contextService.init())
+
   const router = new IPCRouter()
   const allHandlers: Record<string, any> = {
     ...channels,
@@ -105,8 +117,35 @@ async function bootstrap(): Promise<void> {
     ...voiceService.getHandlers(),
     ...linkService.getHandlers(),
     ...syncService.getHandlers(),
+    ...fileService.getHandlers(),
+    ...contextService.getHandlers(),
+    ...createModelIpcHandlers(modelRouter),
   }
   router.registerAll(allHandlers)
+
+  // Persist renderer crash reports to ~/.nexusmind/crash.log
+  const crashLogDir = path.join(os.homedir(), '.nexusmind')
+  const crashLogPath = path.join(crashLogDir, 'crash.log')
+  ipcMain.on('app:rendererCrash', (_event, payload) => {
+    try {
+      if (!fs.existsSync(crashLogDir)) {
+        fs.mkdirSync(crashLogDir, { recursive: true })
+      }
+      const entry = [
+        `--- Renderer Crash ---`,
+        `Timestamp: ${new Date(payload.timestamp).toISOString()}`,
+        `Panel: ${payload.panelName ?? 'unknown'}`,
+        `Message: ${payload.message}`,
+        payload.stack ? `Stack:\n${payload.stack}` : '',
+        payload.componentStack ? `Component Stack:\n${payload.componentStack}` : '',
+        '',
+      ].join('\n')
+      fs.appendFileSync(crashLogPath, entry, 'utf8')
+      console.error('[main] Renderer crash logged to', crashLogPath)
+    } catch (err) {
+      console.error('[main] Failed to write crash log:', err)
+    }
+  })
 
   app.on('before-quit', () => {
     ptyManager.listSessions().forEach(id => {

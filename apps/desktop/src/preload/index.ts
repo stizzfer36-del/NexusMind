@@ -11,6 +11,10 @@ const electronAPI = {
     return ipcRenderer.invoke(channel, ...args)
   },
 
+  send<K extends keyof IpcEvents>(channel: K, ...args: Parameters<IpcEvents[K]>): void {
+    ipcRenderer.send(channel, ...args)
+  },
+
   on<K extends keyof IpcRendererEvents>(
     channel: K,
     callback: IpcRendererEvents[K]

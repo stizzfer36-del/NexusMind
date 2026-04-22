@@ -1,9 +1,9 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react'
 
-export type Route = 'terminal' | 'kanban' | 'swarm' | 'memory' | 'replay' | 'settings' | 'bench' | 'graph' | 'guard' | 'voice'
+export type Route = 'terminal' | 'kanban' | 'swarm' | 'memory' | 'replay' | 'settings' | 'bench' | 'graph' | 'guard' | 'voice' | 'agent'
 
-const VALID_ROUTES: Route[] = ['terminal', 'kanban', 'swarm', 'memory', 'replay', 'settings', 'bench', 'graph', 'guard', 'voice']
-const DEFAULT_ROUTE: Route = 'terminal'
+const VALID_ROUTES: Route[] = ['terminal', 'kanban', 'swarm', 'memory', 'replay', 'settings', 'bench', 'graph', 'guard', 'voice', 'agent']
+const DEFAULT_ROUTE: Route = 'bench'
 
 function parseHash(): Route {
   const hash = window.location.hash.replace(/^#\/?/, '')

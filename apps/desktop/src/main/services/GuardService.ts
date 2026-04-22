@@ -23,8 +23,15 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   ])
 }
 
+interface PendingApproval {
+  resolve: (approved: boolean) => void
+  reject: (reason: Error) => void
+  timer: ReturnType<typeof setTimeout>
+}
+
 export class GuardService {
   private policy: GuardPolicy = { blockOn: ['CRITICAL'] }
+  private readonly pendingApprovals = new Map<string, PendingApproval>()
 
   private get db() {
     return (ServiceRegistry.getInstance().resolve(SERVICE_TOKENS.DB) as any).getDb()
@@ -52,7 +59,83 @@ export class GuardService {
     WindowManager.getInstance().get('main')?.webContents.send(channel, payload)
   }
 
+  private async requestApproval(action: string, reason: string, severity: GuardSeverity): Promise<boolean> {
+    const requestId = crypto.randomUUID()
+
+    return new Promise<boolean>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.pendingApprovals.delete(requestId)
+        reject(new Error('Approval request timed out'))
+      }, 60000)
+
+      this.pendingApprovals.set(requestId, { resolve, reject, timer })
+      this.push('guard:requestApproval', { requestId, action, reason, severity })
+    })
+  }
+
+  resolveApproval(requestId: string, approved: boolean): void {
+    const pending = this.pendingApprovals.get(requestId)
+    if (!pending) {
+      console.warn(`[GuardService] No pending approval for requestId=${requestId}`)
+      return
+    }
+    clearTimeout(pending.timer)
+    this.pendingApprovals.delete(requestId)
+    pending.resolve(approved)
+  }
+
+  private async checkApprovalForAction(action: string): Promise<void> {
+    // If policy does not block on anything, no approval needed.
+    if (this.policy.blockOn.length === 0) return
+
+    // Check the latest completed run for blocking severities.
+    const latestRun = this.db.prepare(`
+      SELECT * FROM guard_runs WHERE status = 'COMPLETED' ORDER BY started_at DESC LIMIT 1
+    `).get() as any
+
+    if (!latestRun) return
+
+    const severityCounts: Record<GuardSeverity, number> = {
+      LOW: latestRun.low_count ?? 0,
+      MEDIUM: latestRun.medium_count ?? 0,
+      HIGH: latestRun.high_count ?? 0,
+      CRITICAL: latestRun.critical_count ?? 0,
+    }
+
+    const blockingSeverities = this.policy.blockOn.filter(
+      (sev: GuardSeverity) => severityCounts[sev] > 0
+    )
+
+    if (blockingSeverities.length === 0) return
+
+    const highestSeverity = blockingSeverities.includes('CRITICAL')
+      ? 'CRITICAL'
+      : blockingSeverities.includes('HIGH')
+        ? 'HIGH'
+        : blockingSeverities.includes('MEDIUM')
+          ? 'MEDIUM'
+          : 'LOW'
+
+    const totalBlocking = blockingSeverities.reduce(
+      (sum, sev) => sum + severityCounts[sev],
+      0
+    )
+
+    const approved = await this.requestApproval(
+      action,
+      `${totalBlocking} ${blockingSeverities.join('/')} finding(s) detected in the latest scan. Review before proceeding.`,
+      highestSeverity as GuardSeverity
+    )
+
+    if (!approved) {
+      throw new Error(`Action "${action}" rejected by guard approval.`)
+    }
+  }
+
   async runGuard(): Promise<{ runId: string }> {
+    // Guard-run itself can be blocked by existing critical findings.
+    await this.checkApprovalForAction('Run Guard scan')
+
     const runId = crypto.randomUUID()
     const startedAt = Date.now()
 
@@ -166,6 +249,8 @@ export class GuardService {
       'guard:getFindings': (_event: any, runId: string) => this.getFindings(runId),
       'guard:getPolicy': (_event: any) => this.getPolicy(),
       'guard:setPolicy': (_event: any, policy: GuardPolicy) => this.setPolicy(policy),
+      'guard:approvalResponse': (_event: any, payload: { requestId: string; approved: boolean }) =>
+        this.resolveApproval(payload.requestId, payload.approved),
     }
   }
 }

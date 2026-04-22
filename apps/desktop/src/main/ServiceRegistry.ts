@@ -15,6 +15,8 @@ export const SERVICE_TOKENS = {
   GuardService: 'GuardService',
   LinkService: 'LinkService',
   SyncService: 'SyncService',
+  FileService: 'FileService',
+  ContextService: 'ContextService',
 } as const
 
 export class ServiceRegistry {

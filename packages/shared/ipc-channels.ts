@@ -67,6 +67,11 @@ export interface IpcEvents {
   'terminal:resize': (payload: TerminalResize) => void
   'terminal:kill': (id: string) => void
 
+  'pty:create': (shell?: string) => TerminalSession
+  'pty:write': (id: string, data: string) => void
+  'pty:resize': (id: string, cols: number, rows: number) => void
+  'pty:close': (id: string) => void
+
   // swarm
   'swarm:create': (config: import('./types/swarm.types.js').SwarmConfig, name?: string) => SwarmSession
   'swarm:listSessions': () => SwarmSession[]
@@ -88,6 +93,7 @@ export interface IpcEvents {
   'models:getConfig': (modelId: ModelId) => ModelConfig
   'models:streamChat': (payload: { modelId: ModelId; messages: Array<{ role: string; content: string }> }) => AsyncIterable<StreamChunk>
   'model:validate': (provider: string) => boolean
+  'model:stream': (payload: { modelId: ModelId; messages: Array<{ role: string; content: string }> }) => { streamId: string; ok: boolean; error?: string }
 
   // settings
   'settings:get': (key: string) => unknown
@@ -105,6 +111,7 @@ export interface IpcEvents {
   'mcp:addServer': (config: MCPServerConfig) => MCPServerConfig
   'mcp:removeServer': (serverId: MCPServerId) => void
   'mcp:executeTool': (payload: { name: string; args: Record<string, unknown> }) => unknown
+  'mcp:getServerStatus': (serverId: MCPServerId) => { status: string; pid?: number; restarts: number } | null
 
   // memory
   'memory:list': (type?: MemoryType) => MemoryEntry[]
@@ -142,6 +149,7 @@ export interface IpcEvents {
   'guard:getFindings': (runId: string) => GuardFinding[]
   'guard:getPolicy': () => GuardPolicy
   'guard:setPolicy': (policy: GuardPolicy) => void
+  'guard:approvalResponse': (payload: { requestId: string; approved: boolean }) => void
 
   // bench
   'bench:listTasks': (dimension?: BenchDimension) => BenchTask[]
@@ -159,6 +167,22 @@ export interface IpcEvents {
   'sync:setConfig': (config: SyncConfig) => void
   'sync:getSummary': () => SyncSummary
   'sync:trigger': () => SyncSummary
+
+  // dialog
+  'dialog:openDirectory': () => string | null
+
+  // context
+  'context:setActiveFile': (filePath: string, content: string) => { ok: boolean }
+  'context:getActiveFile': () => { path: string; content: string } | null
+  'context:getSystemContext': () => string
+
+  // file
+  'file:read': (filePath: string) => string
+  'file:write': (filePath: string, content: string) => void
+  'file:listDir': (dirPath: string) => Array<{ name: string; path: string; isDirectory: boolean; size: number; mtime: number }>
+  'file:applyDiff': (filePath: string, diff: import('./utils/diff.utils.js').DiffResult) => string
+  'file:watch': (filePath: string) => string
+  'file:unwatch': (id: string) => void
 }
 
 // ---------------------------------------------------------------------------
@@ -168,6 +192,9 @@ export interface IpcRendererEvents {
   // terminal / pty
   'terminal:data': (payload: TerminalData) => void
   'terminal:exit': (payload: { id: string; code: number }) => void
+
+  'pty:data': (payload: TerminalData) => void
+  'pty:exit': (payload: { id: string; code: number }) => void
 
   // swarm
   'swarm:update': (payload: SwarmState & { id?: string; activeNode?: string }) => void
@@ -186,6 +213,8 @@ export interface IpcRendererEvents {
   // mcp
   'mcp:toolResult': (result: MCPToolResult) => void
   'mcp:serverStatus': (payload: { serverId: MCPServerId; status: string }) => void
+  'mcp:serverDown': (payload: { serverId: MCPServerId; reason: string }) => void
+  'mcp:serverUp': (payload: { serverId: MCPServerId; pid: number }) => void
 
   // memory
   'memory:entryAdded': (entry: MemoryEntry) => void
@@ -206,6 +235,7 @@ export interface IpcRendererEvents {
   'guard:finding': (finding: GuardFinding) => void
   'guard:progress': (payload: { scanner: string; status: string; findings: GuardFinding[] }) => void
   'guard:complete': (payload: { runId: string; findings: GuardFinding[] }) => void
+  'guard:requestApproval': (payload: { requestId: string; action: string; reason: string; severity: string }) => void
 
   // bench
   'bench:progress': (payload: { reportId: string; progress: number }) => void
@@ -220,6 +250,21 @@ export interface IpcRendererEvents {
   'stream:data': (payload: { id: string; delta: string }) => void
   'stream:end': (payload: { id: string }) => void
 
+  // model streaming
+  'model:token': (payload: { streamId: string; token: string; index: number }) => void
+  'model:done': (payload: { streamId: string; finishReason?: string; usage?: { promptTokens: number; completionTokens: number; totalTokens: number } }) => void
+  'model:error': (payload: { streamId: string; error: string }) => void
+
+  // file
+  'file:watchEvent': (payload: { id: string; eventType: string; path?: string }) => void
+
   // app health
   'app:serviceHealth': (payload: { failed: string[] }) => void
+  'app:rendererCrash': (payload: {
+    panelName?: string
+    message: string
+    stack?: string
+    componentStack?: string
+    timestamp: number
+  }) => void
 }
