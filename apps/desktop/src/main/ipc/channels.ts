@@ -55,6 +55,7 @@ export const channels: HandlerMap = {
   'mcp:executeTool': stub,
 
   // memory
+  'memory:list': stub,
   'memory:search': stub,
   'memory:add': stub,
   'memory:delete': stub,

@@ -1,7 +1,7 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useIPC, useIPCEvent } from '../../hooks'
+import React, { useCallback, useMemo, useState } from 'react'
+import { useIPC } from '../../hooks'
+import { useSwarm } from '../../features/swarm/useSwarm'
 import { SwarmStatus } from '@nexusmind/shared'
-import type { SwarmSession, SwarmState } from '@nexusmind/shared'
 import styles from './SwarmPanel.module.css'
 
 const PIPELINE_NODES = ['coordinator', 'builder', 'reviewer', 'tester', 'docwriter', 'END']
@@ -75,62 +75,41 @@ function getAgentStatus(role: string, sessionStatus: SwarmStatus, activeNode: st
 }
 
 export function SwarmPanel() {
-  const [sessions, setSessions] = useState<SwarmSession[]>([])
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const {
+    sessions,
+    agents,
+    selectedSessionId,
+    setSelectedSessionId,
+  } = useSwarm()
+
   const [showModal, setShowModal] = useState(false)
   const [goalText, setGoalText] = useState('')
   const [agentCount, setAgentCount] = useState(4)
-  const [activeNode, setActiveNode] = useState<string | null>(null)
 
-  const selectedIdRef = useRef<string | null>(null)
-  useEffect(() => { selectedIdRef.current = selectedId }, [selectedId])
-
-  const listIPC = useIPC<'swarm:listSessions'>()
-  const startIPC = useIPC<'swarm:start'>()
+  const startIPC = useIPC<'swarm:start'>
   const stopIPC = useIPC<'swarm:stop'>()
   const createIPC = useIPC<'swarm:create'>()
 
   const selectedSession = useMemo(
-    () => sessions.find(s => s.id === selectedId) ?? null,
-    [sessions, selectedId],
+    () => sessions.find(s => s.id === selectedSessionId) ?? null,
+    [sessions, selectedSessionId],
   )
 
-  // Load sessions on mount
-  useEffect(() => {
-    listIPC.invoke('swarm:listSessions').then(list => {
-      setSessions(list)
-      if (list.length > 0) setSelectedId(list[0].id)
-    }).catch(console.error)
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  const sessionAgents = useMemo(
+    () => selectedSession ? agents.filter(a => a.sessionId === selectedSession.id) : [],
+    [agents, selectedSession],
+  )
 
-  // Real-time swarm state updates — use ref so callback never goes stale
-  useIPCEvent('swarm:update', useCallback((payload: SwarmState & { id?: string; activeNode?: string }) => {
-    const { activeNode: payloadActiveNode, id: _id, ...state } = payload
-    setSessions(prev => prev.map(s =>
-      s.id === selectedIdRef.current ? { ...s, state, updatedAt: Date.now() } : s
-    ))
-    if (payloadActiveNode !== undefined) {
-      setActiveNode(payloadActiveNode)
-    } else {
-      const status = state.status
-      const derived: Record<string, string> = {
-        orchestrating: 'coordinator',
-        executing: 'builder',
-        converging: 'reviewer',
-        completed: 'END',
-      }
-      setActiveNode(derived[status] ?? null)
+  const activeNode = useMemo(() => {
+    if (!selectedSession) return null
+    const derived: Record<string, string> = {
+      orchestrating: 'coordinator',
+      executing: 'builder',
+      converging: 'reviewer',
+      completed: 'END',
     }
-  }, []))
-
-  // Listen for newly created sessions from main
-  useIPCEvent('swarm:sessionCreated', useCallback((session: SwarmSession) => {
-    setSessions(prev => {
-      if (prev.some(s => s.id === session.id)) return prev
-      return [...prev, session]
-    })
-    setSelectedId(session.id)
-  }, []))
+    return derived[selectedSession.state.status] ?? null
+  }, [selectedSession])
 
   const handleLaunch = useCallback(async () => {
     if (!goalText.trim()) return
@@ -149,8 +128,6 @@ export function SwarmPanel() {
       }
 
       await startIPC.invoke('swarm:start', session)
-      setSessions(prev => [...prev, session])
-      setSelectedId(session.id)
       setGoalText('')
       setAgentCount(4)
       setShowModal(false)
@@ -162,11 +139,6 @@ export function SwarmPanel() {
   const handleStop = useCallback(async (sessionId: string) => {
     try {
       await stopIPC.invoke('swarm:stop', sessionId)
-      setSessions(prev => prev.map(s =>
-        s.id === sessionId
-          ? { ...s, state: { ...s.state, status: SwarmStatus.IDLE }, updatedAt: Date.now() }
-          : s
-      ))
     } catch (err) {
       console.error('Failed to stop swarm session:', err)
     }
@@ -243,7 +215,7 @@ export function SwarmPanel() {
           </button>
         </div>
 
-        <div className={styles.sessionList}>
+            <div className={styles.sessionList}>
           {sessions.length === 0 ? (
             <div className={styles.emptyList}>
               <div>No swarm sessions yet</div>
@@ -254,9 +226,9 @@ export function SwarmPanel() {
             sessions.map(s => (
               <button
                 key={s.id}
-                className={`${styles.sessionItem} ${s.id === selectedId ? styles.sessionItemActive : ''}`}
-                onClick={() => setSelectedId(s.id)}
-                aria-pressed={s.id === selectedId}
+                className={`${styles.sessionItem} ${s.id === selectedSessionId ? styles.sessionItemActive : ''}`}
+                onClick={() => setSelectedSessionId(s.id)}
+                aria-pressed={s.id === selectedSessionId}
                 aria-label={`${s.name}, ${STATUS_LABELS[s.state.status] ?? s.state.status}, ${s.state.agentIds.length} agents`}
               >
                 <div className={styles.sessionItemHeader}>
@@ -377,23 +349,21 @@ export function SwarmPanel() {
               )
             })()}
 
-            {/* Agent roster */}
+            {/* Agent roster — populated from SwarmService.getAgents() */}
             <div className={styles.section}>
               <div className={styles.sectionTitle}>Agent Roster</div>
-              {selectedSession.state.agentIds.length === 0 ? (
+              {sessionAgents.length === 0 ? (
                 <div className={styles.noAgents}>No agents assigned</div>
               ) : (
                 <div className={styles.agentGrid}>
-                  {selectedSession.state.agentIds.map((agentId, i) => {
-                    const roles = Object.keys(ROLE_LABELS)
-                    const role = roles[i % roles.length]
-                    const status = getAgentStatus(role, selectedSession.state.status, activeNode)
+                  {sessionAgents.map((agent) => {
+                    const status = getAgentStatus(agent.role, selectedSession.state.status, activeNode)
                     return (
-                      <div key={agentId} className={styles.agentCard}>
-                        <div className={styles.agentIcon}>{ROLE_LABELS[role] ?? role}</div>
+                      <div key={agent.id} className={styles.agentCard}>
+                        <div className={styles.agentIcon}>{ROLE_LABELS[agent.role] ?? agent.role}</div>
                         <div className={styles.agentInfo}>
-                          <div className={styles.agentRole}>{role}</div>
-                          <div className={styles.agentId}>{agentId.slice(0, 8)}</div>
+                          <div className={styles.agentRole}>{agent.role}</div>
+                          <div className={styles.agentId}>{agent.id.slice(0, 8)}</div>
                           <span className={`${styles.agentStatus} ${styles[`agentStatus${status.charAt(0).toUpperCase() + status.slice(1)}`]}`}>
                             {status}
                           </span>

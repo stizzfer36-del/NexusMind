@@ -32,3 +32,11 @@ export interface AgentMessage {
   timestamp: number
   metadata?: Record<string, unknown>
 }
+
+export interface AgentInfo {
+  id: string
+  role: string
+  sessionId: string
+  sessionName: string
+  status: string
+}

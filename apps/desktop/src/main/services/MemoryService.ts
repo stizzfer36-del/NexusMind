@@ -204,6 +204,20 @@ export class MemoryService {
     this.db.getDb().prepare(`DELETE FROM memory_entries WHERE id = ?`).run(id)
   }
 
+  listMemories(type?: string): MemoryEntry[] {
+    const database = this.db.getDb()
+    const rows = (
+      type != null
+        ? (database
+            .prepare(`SELECT * FROM memory_entries WHERE type = ? ORDER BY created_at DESC`)
+            .all(type) as any[])
+        : (database
+            .prepare(`SELECT * FROM memory_entries ORDER BY created_at DESC`)
+            .all() as any[])
+    )
+    return rows.map((row) => this.rowToEntry(row))
+  }
+
   private rowToEntry(row: any): MemoryEntry {
     return {
       id: row.id,
@@ -228,6 +242,7 @@ export class MemoryService {
       'memory:store': (_event: any, entry: Omit<MemoryEntry, 'id' | 'createdAt' | 'updatedAt'>) =>
         this.store(entry),
       'memory:delete': (_event: any, id: string) => this.delete(id),
+      'memory:list': (_event: any, type?: string) => this.listMemories(type),
     }
   }
 }

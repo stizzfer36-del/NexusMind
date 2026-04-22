@@ -447,6 +447,25 @@ export class SwarmService {
   // IPC handlers
   // -------------------------------------------------------------------------
 
+  getAgents(): import('@nexusmind/shared').AgentInfo[] {
+    const agents: import('@nexusmind/shared').AgentInfo[] = []
+    const roleList: AgentRole[] = ['coordinator', 'builder', 'reviewer', 'tester', 'docwriter']
+    for (const session of this.sessions.values()) {
+      for (let i = 0; i < session.state.agentIds.length; i++) {
+        const agentId = session.state.agentIds[i]
+        const role = roleList[i % roleList.length]
+        agents.push({
+          id: agentId,
+          role,
+          sessionId: session.id,
+          sessionName: session.name,
+          status: session.state.status,
+        })
+      }
+    }
+    return agents
+  }
+
   getHandlers(): Record<string, (event: IpcMainInvokeEvent, ...args: any[]) => any> {
     return {
       'swarm:create': (_event: IpcMainInvokeEvent, config: SwarmConfig, name?: string) =>
@@ -466,6 +485,8 @@ export class SwarmService {
 
       'swarm:getState': (_event: IpcMainInvokeEvent, sessionId: string) =>
         this.getSession(sessionId)?.state ?? null,
+
+      'swarm:getAgents': () => this.getAgents(),
 
       'swarm:list': () => this.listSessions(),
       'swarm:listSessions': () => this.listSessions(),

@@ -73,6 +73,7 @@ export interface IpcEvents {
   'swarm:start': (config: SwarmSession) => SwarmSession
   'swarm:stop': (sessionId: string) => void
   'swarm:getState': (sessionId: string) => SwarmState
+  'swarm:getAgents': () => import('./types/agent.types.js').AgentInfo[]
 
   // kanban / tasks
   'kanban:listTasks': () => Task[]
@@ -106,6 +107,7 @@ export interface IpcEvents {
   'mcp:executeTool': (payload: { name: string; args: Record<string, unknown> }) => unknown
 
   // memory
+  'memory:list': (type?: MemoryType) => MemoryEntry[]
   'memory:search': (payload: { query: string; type?: MemoryType }) => MemorySearchResult[]
   'memory:add': (entry: Omit<MemoryEntry, 'id' | 'createdAt' | 'accessedAt'>) => MemoryEntry
   'memory:delete': (id: string) => void

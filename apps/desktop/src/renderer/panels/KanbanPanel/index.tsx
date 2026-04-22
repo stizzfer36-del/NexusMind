@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react'
-import { useIPC, useIPCEvent } from '../../hooks'
+import React, { useCallback, useRef, useState } from 'react'
+import { useKanban } from '../../features/kanban/useKanban'
 import type { Task } from '@nexusmind/shared'
 import styles from './KanbanPanel.module.css'
 
@@ -20,7 +20,7 @@ const PRIORITY_COLORS: Record<Task['priority'], string> = {
 }
 
 export function KanbanPanel() {
-  const [tasks, setTasks] = useState<Task[]>([])
+  const kanban = useKanban()
   const [editingTask, setEditingTask] = useState<Task | null>(null)
   const [addingToColumn, setAddingToColumn] = useState<ColumnId | null>(null)
   const [newTaskTitle, setNewTaskTitle] = useState('')
@@ -29,39 +29,9 @@ export function KanbanPanel() {
   const [newTaskTags, setNewTaskTags] = useState('')
   const [dragOverColumn, setDragOverColumn] = useState<ColumnId | null>(null)
   const dragTaskRef = useRef<string | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [loadError, setLoadError] = useState<string | null>(null)
-
-  const listIPC = useIPC<'kanban:getTasks'>()
-  const createIPC = useIPC<'kanban:createTask'>()
-  const updateIPC = useIPC<'kanban:updateTask'>()
-  const deleteIPC = useIPC<'kanban:deleteTask'>()
-  const moveIPC = useIPC<'kanban:moveTask'>()
-
-  // Load tasks
-  useEffect(() => {
-    setLoading(true)
-    listIPC.invoke('kanban:getTasks')
-      .then(res => { if (Array.isArray(res)) setTasks(res) })
-      .catch(err => setLoadError(String(err)))
-      .finally(() => setLoading(false))
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Listen for real-time task updates
-  useIPCEvent('kanban:taskUpdated', useCallback((task: Task) => {
-    setTasks(prev => {
-      const idx = prev.findIndex(t => t.id === task.id)
-      if (idx >= 0) {
-        const next = [...prev]
-        next[idx] = task
-        return next
-      }
-      return [...prev, task]
-    })
-  }, []))
 
   const getColumnTasks = (col: ColumnId) =>
-    tasks.filter(t => t.column === col)
+    kanban.tasks.filter(t => t.column === col)
 
   // Drag-and-drop handlers
   const onDragStart = useCallback((e: React.DragEvent, taskId: string) => {
@@ -88,20 +58,17 @@ export function KanbanPanel() {
     dragTaskRef.current = null
 
     try {
-      const result = await moveIPC.invoke('kanban:moveTask', { taskId, column: col as any })
-      if (result && 'id' in result) {
-        setTasks(prev => prev.map(t => t.id === taskId ? result as Task : t))
-      }
+      await kanban.moveTask(taskId, col)
     } catch (err) {
       console.error('Failed to move task:', err)
     }
-  }, [moveIPC])
+  }, [kanban])
 
   const handleAddTask = useCallback(async (col: ColumnId) => {
     if (!newTaskTitle.trim()) return
     const tags = newTaskTags.split(',').map(t => t.trim()).filter(Boolean)
     try {
-      const result = await createIPC.invoke('kanban:createTask', {
+      await kanban.createTask({
         title: newTaskTitle.trim(),
         description: newTaskDescription.trim(),
         status: 'todo' as any,
@@ -110,9 +77,6 @@ export function KanbanPanel() {
         tags,
         priority: newTaskPriority,
       })
-      if (result && 'id' in result) {
-        setTasks(prev => [...prev, result as Task])
-      }
       setNewTaskTitle('')
       setNewTaskDescription('')
       setNewTaskPriority('medium')
@@ -121,41 +85,37 @@ export function KanbanPanel() {
     } catch (err) {
       console.error('Failed to create task:', err)
     }
-  }, [createIPC, newTaskTitle, newTaskDescription, newTaskPriority, newTaskTags])
+  }, [kanban, newTaskTitle, newTaskDescription, newTaskPriority, newTaskTags])
 
   const handleDeleteTask = useCallback(async (taskId: string) => {
     try {
-      await deleteIPC.invoke('kanban:deleteTask', taskId)
-      setTasks(prev => prev.filter(t => t.id !== taskId))
+      await kanban.deleteTask(taskId)
       if (editingTask?.id === taskId) setEditingTask(null)
     } catch (err) {
       console.error('Failed to delete task:', err)
     }
-  }, [deleteIPC, editingTask])
+  }, [kanban, editingTask])
 
   const handleSaveEdit = useCallback(async () => {
     if (!editingTask) return
     try {
-      const result = await updateIPC.invoke('kanban:updateTask', editingTask)
-      if (result && 'id' in result) {
-        setTasks(prev => prev.map(t => t.id === (result as Task).id ? result as Task : t))
-      }
+      await kanban.updateTask(editingTask)
       setEditingTask(null)
     } catch (err) {
       console.error('Failed to update task:', err)
     }
-  }, [updateIPC, editingTask])
+  }, [kanban, editingTask])
 
   return (
     <div className={styles.root}>
-      {loading ? (
+      {kanban.isLoading ? (
         <div className={styles.boardLoading}>
           {[0,1,2,3].map(i => <div key={i} className={styles.columnSkeleton} />)}
         </div>
-      ) : loadError ? (
+      ) : kanban.lastError ? (
         <div className={styles.boardError}>
           <span>Kanban service unavailable</span>
-          <span className={styles.boardErrorDetail}>{loadError}</span>
+          <span className={styles.boardErrorDetail}>{kanban.lastError}</span>
         </div>
       ) : (
         <div className={styles.board}>

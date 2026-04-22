@@ -1,6 +1,6 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react'
-import { useIPC } from '../../hooks'
-import type { MemorySearchResult, MemoryType } from '@nexusmind/shared'
+import React, { useCallback, useState } from 'react'
+import { useMemory } from '../../features/memory/useMemory'
+import type { MemoryType } from '@nexusmind/shared'
 import styles from './MemoryPanel.module.css'
 
 function parseAgentSource(source: string): { id: string; role: string | null } {
@@ -45,53 +45,20 @@ function relativeTime(ts: number): string {
 }
 
 export function MemoryPanel() {
-  const [results, setResults] = useState<MemorySearchResult[]>([])
-  const [query, setQuery] = useState('')
+  const memory = useMemory()
   const [expandedId, setExpandedId] = useState<string | null>(null)
-  const [typeFilter, setTypeFilter] = useState<MemoryType | 'all'>('all')
-  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  const searchIPC = useIPC<'memory:search'>()
-  const deleteIPC = useIPC<'memory:delete'>()
-
-  const doSearch = useCallback((q: string, type: MemoryType | 'all') => {
-    const payload = type === 'all'
-      ? { query: q }
-      : { query: q, type }
-    searchIPC.invoke('memory:search', payload)
-      .then(setResults)
-      .catch(console.error)
-  }, [searchIPC])
-
-  // Initial load (empty query = list all)
-  useEffect(() => {
-    doSearch('', 'all')
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Debounced search on query change
-  const handleQueryChange = useCallback((q: string) => {
-    setQuery(q)
-    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current)
-    searchDebounceRef.current = setTimeout(() => {
-      doSearch(q, typeFilter)
-    }, 300)
-  }, [doSearch, typeFilter])
-
-  const handleTypeFilter = useCallback((type: MemoryType | 'all') => {
-    setTypeFilter(type)
-    doSearch(query, type)
-  }, [doSearch, query])
 
   const handleDelete = useCallback(async (id: string, e: React.MouseEvent) => {
     e.stopPropagation()
     try {
-      await deleteIPC.invoke('memory:delete', id)
-      setResults(prev => prev.filter(r => r.entry.id !== id))
+      await memory.deleteEntry(id)
       if (expandedId === id) setExpandedId(null)
     } catch (err) {
       console.error('Failed to delete memory:', err)
     }
-  }, [deleteIPC, expandedId])
+  }, [memory, expandedId])
+
+  const { results, isLoading, query, setQuery, typeFilter, setTypeFilter } = memory
 
   return (
     <div className={styles.root}>
@@ -107,10 +74,10 @@ export function MemoryPanel() {
             type="search"
             placeholder="Search memories…"
             value={query}
-            onChange={e => handleQueryChange(e.target.value)}
+            onChange={e => setQuery(e.target.value)}
           />
           {query && (
-            <button className={styles.clearBtn} onClick={() => handleQueryChange('')} aria-label="Clear search">
+            <button className={styles.clearBtn} onClick={() => setQuery('')} aria-label="Clear search">
               ×
             </button>
           )}
@@ -120,7 +87,7 @@ export function MemoryPanel() {
             <button
               key={type}
               className={`${styles.filterChip} ${typeFilter === type ? styles.filterChipActive : ''}`}
-              onClick={() => handleTypeFilter(type as MemoryType | 'all')}
+              onClick={() => setTypeFilter(type as MemoryType | 'all')}
               style={typeFilter === type && type !== 'all'
                 ? { borderColor: TYPE_COLORS[type as MemoryType], color: TYPE_COLORS[type as MemoryType] }
                 : {}
@@ -134,7 +101,7 @@ export function MemoryPanel() {
 
       {/* Results */}
       <div className={styles.results}>
-        {searchIPC.loading && results.length === 0 ? (
+        {isLoading && results.length === 0 ? (
           <div className={styles.loading}>Searching…</div>
         ) : results.length === 0 ? (
           <div className={styles.empty}>
