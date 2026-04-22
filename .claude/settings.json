@@ -34,7 +34,8 @@
       "Bash(echo \"desktop:EXIT:$?\")",
       "Bash(echo \"BUILD_EXIT:$?\")",
       "Bash(echo \"DIST_EXIT:$?\")",
-      "Bash(node packages/cli/dist/cli/bin/nexus.js run-swarm --goal \"Create a test file and write a line\" --maxAgents 2)"
+      "Bash(node packages/cli/dist/cli/bin/nexus.js run-swarm --goal \"Create a test file and write a line\" --maxAgents 2)",
+      "Bash(git push *)"
     ],
     "additionalDirectories": [
       "/tmp"
