@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react'
 import { useIPC, useIPCEvent } from '../../hooks'
 import styles from './SettingsPanel.module.css'
 
-type Section = 'api-keys' | 'models' | 'appearance' | 'shortcuts' | 'link' | 'about'
+type Section = 'api-keys' | 'models' | 'appearance' | 'shortcuts' | 'link' | 'sync' | 'about'
 
 const SECTIONS: { id: Section; label: string; icon: string }[] = [
   { id: 'api-keys', label: 'API Keys', icon: '🔑' },
@@ -10,6 +10,7 @@ const SECTIONS: { id: Section; label: string; icon: string }[] = [
   { id: 'appearance', label: 'Appearance', icon: '🎨' },
   { id: 'shortcuts', label: 'Shortcuts', icon: '⌨️' },
   { id: 'link', label: 'Link', icon: '🔗' },
+  { id: 'sync', label: 'Sync', icon: '☁️' },
   { id: 'about', label: 'About', icon: 'ℹ️' },
 ]
 
@@ -248,8 +249,144 @@ function LinkSection() {
   )
 }
 
+function SyncSection() {
+  const [config, setConfig] = useState<{ enabled: boolean; endpoint: string; apiKey: string }>({
+    enabled: false, endpoint: '', apiKey: '',
+  })
+  const [summary, setSummary] = useState<{
+    lastSyncAt?: number; lastStatus: string; lastError?: string;
+    itemsUploaded: number; itemsPending: number;
+  }>({ lastStatus: 'idle', itemsUploaded: 0, itemsPending: 0 })
+  const [syncing, setSyncing] = useState(false)
+  const getConfigIPC = useIPC<'sync:getConfig'>()
+  const setConfigIPC = useIPC<'sync:setConfig'>()
+  const getSummaryIPC = useIPC<'sync:getSummary'>()
+  const triggerIPC = useIPC<'sync:trigger'>()
+
+  useEffect(() => {
+    getConfigIPC.invoke('sync:getConfig').then(cfg => {
+      setConfig({ enabled: cfg.enabled, endpoint: cfg.endpoint ?? '', apiKey: cfg.apiKey ?? '' })
+    }).catch(console.error)
+    getSummaryIPC.invoke('sync:getSummary').then(setSummary).catch(console.error)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useIPCEvent('sync:statusChange', (s: any) => setSummary(s))
+
+  const handleSave = useCallback(async () => {
+    try {
+      await setConfigIPC.invoke('sync:setConfig', {
+        enabled: config.enabled,
+        endpoint: config.endpoint || undefined,
+        apiKey: config.apiKey || undefined,
+      })
+    } catch (err) { console.error(err) }
+  }, [setConfigIPC, config])
+
+  const handleTrigger = useCallback(async () => {
+    setSyncing(true)
+    try {
+      const result = await triggerIPC.invoke('sync:trigger')
+      setSummary(result)
+    } catch (err) { console.error(err) }
+    setSyncing(false)
+  }, [triggerIPC])
+
+  const statusColor = summary.lastStatus === 'ok' ? '#3fb950'
+    : summary.lastStatus === 'error' ? '#f85149'
+    : summary.lastStatus === 'in-progress' ? '#f0a500'
+    : '#888'
+
+  return (
+    <div className={styles.section}>
+      <h2 className={styles.sectionTitle}>Sync</h2>
+      <p className={styles.sectionDesc}>
+        Sync bench results, replay sessions, and guard runs to a remote backend.
+        No network calls are made yet — this is scaffolding for a future cloud service.
+      </p>
+
+      <div className={styles.syncStatusCard}>
+        <div className={styles.syncStatusRow}>
+          <span className={styles.syncStatusDot} style={{ background: statusColor }} />
+          <span className={styles.syncStatusLabel}>
+            {summary.lastStatus === 'idle' && 'Never synced'}
+            {summary.lastStatus === 'in-progress' && 'Syncing…'}
+            {summary.lastStatus === 'ok' && `Last sync: ${summary.lastSyncAt ? new Date(summary.lastSyncAt).toLocaleTimeString() : '—'}`}
+            {summary.lastStatus === 'error' && `Error: ${summary.lastError ?? 'unknown'}`}
+          </span>
+        </div>
+        {summary.lastStatus === 'ok' && (
+          <div className={styles.syncCounts}>
+            <span>{summary.itemsUploaded} items uploaded</span>
+            <span className={styles.syncSep}>·</span>
+            <span>{summary.itemsPending} pending</span>
+          </div>
+        )}
+      </div>
+
+      <div className={styles.fieldGroup}>
+        <label className={styles.fieldLabel}>Enable Sync</label>
+        <button
+          type="button"
+          className={`${styles.toggle} ${config.enabled ? styles.toggleOn : ''}`}
+          onClick={() => setConfig(c => ({ ...c, enabled: !c.enabled }))}
+          aria-pressed={config.enabled}
+        >
+          <span className={styles.toggleThumb} />
+        </button>
+      </div>
+
+      <div className={styles.fieldGroup}>
+        <label className={styles.fieldLabel}>Endpoint URL</label>
+        <input
+          type="text"
+          className={styles.fieldInput}
+          value={config.endpoint}
+          onChange={e => setConfig(c => ({ ...c, endpoint: e.target.value }))}
+          placeholder="https://sync.nexusmind.app"
+          disabled
+          title="Endpoint configuration coming soon"
+        />
+      </div>
+
+      <div className={styles.fieldGroup}>
+        <label className={styles.fieldLabel}>API Key</label>
+        <input
+          type="password"
+          className={styles.fieldInput}
+          value={config.apiKey}
+          onChange={e => setConfig(c => ({ ...c, apiKey: e.target.value }))}
+          placeholder="nx-…"
+          autoComplete="off"
+        />
+      </div>
+
+      <div className={styles.syncActions}>
+        <button className={styles.saveKeyBtn} onClick={handleSave}>
+          Save
+        </button>
+        <button
+          className={`${styles.saveKeyBtn} ${styles.syncTriggerBtn}`}
+          onClick={handleTrigger}
+          disabled={syncing || summary.lastStatus === 'in-progress'}
+        >
+          {syncing ? 'Syncing…' : 'Trigger Sync'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export function SettingsPanel() {
   const [activeSection, setActiveSection] = useState<Section>('api-keys')
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const section = (e as CustomEvent<string>).detail as Section
+      if (section) setActiveSection(section)
+    }
+    window.addEventListener('nexus:settings-section', handler)
+    return () => window.removeEventListener('nexus:settings-section', handler)
+  }, [])
 
   return (
     <div className={styles.root}>
@@ -350,6 +487,8 @@ export function SettingsPanel() {
         )}
 
         {activeSection === 'link' && <LinkSection />}
+
+        {activeSection === 'sync' && <SyncSection />}
 
         {activeSection === 'about' && (
           <div className={styles.section}>

@@ -1,11 +1,59 @@
-import React, { useState } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import styles from './Layout.module.css'
+import { useNavigate } from './Router'
+import { useIPC, useIPCEvent } from '../hooks'
+import type { SyncSummary } from '@nexusmind/shared'
 
 interface LayoutProps {
   sidebar: React.ReactNode
   main: React.ReactNode
   rightPanel?: React.ReactNode
   modelSelector?: React.ReactNode
+}
+
+function SyncChip() {
+  const navigate = useNavigate()
+  const [summary, setSummary] = useState<SyncSummary>({
+    lastStatus: 'idle',
+    itemsUploaded: 0,
+    itemsPending: 0,
+  })
+  const ipc = useIPC<'sync:getSummary'>()
+
+  useEffect(() => {
+    ipc.invoke('sync:getSummary').then(setSummary).catch(() => {})
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useIPCEvent('sync:statusChange', setSummary)
+
+  const handleClick = useCallback(() => {
+    window.dispatchEvent(new CustomEvent('nexus:settings-section', { detail: 'sync' }))
+    navigate('settings')
+  }, [navigate])
+
+  const isProgress = summary.lastStatus === 'in-progress'
+  const isError = summary.lastStatus === 'error'
+
+  return (
+    <button
+      className={`${styles.syncChip} ${isError ? styles.syncChipError : ''} ${isProgress ? styles.syncChipProgress : ''}`}
+      onClick={handleClick}
+      title={`Sync: ${summary.lastStatus}${isError && summary.lastError ? ` — ${summary.lastError}` : ''}`}
+      aria-label="Sync status"
+    >
+      <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">
+        <path
+          d="M2 6.5A4.5 4.5 0 0 1 9.5 3L11 4.5M11 6.5A4.5 4.5 0 0 1 3.5 10L2 8.5"
+          stroke="currentColor"
+          strokeWidth="1.3"
+          strokeLinecap="round"
+        />
+        <path d="M9 2.5l2 2-2 2" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M4 8.5l-2 2 2 2" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+      {isError && <span className={styles.syncBadge} aria-hidden="true" />}
+    </button>
+  )
 }
 
 export function Layout({ sidebar, main, rightPanel, modelSelector }: LayoutProps) {
@@ -28,6 +76,7 @@ export function Layout({ sidebar, main, rightPanel, modelSelector }: LayoutProps
           {modelSelector}
         </div>
         <div className={styles.topbarRight}>
+          <SyncChip />
           <kbd className={styles.kbdHint}>⌘K</kbd>
           <button
             className={`${styles.panelToggle} ${rightOpen ? styles.panelToggleActive : ''}`}

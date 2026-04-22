@@ -523,3 +523,59 @@
 .toggleOn .toggleThumb {
   transform: translateX(16px);
 }
+
+/* ─── Sync Section ─── */
+
+.syncStatusCard {
+  padding: 10px 14px;
+  background: var(--color-surface, #111);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md, 6px);
+  margin-bottom: 20px;
+}
+
+.syncStatusRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.syncStatusDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.syncStatusLabel {
+  font-size: var(--font-size-sm, 12px);
+  color: var(--color-text-muted);
+}
+
+.syncCounts {
+  margin-top: 6px;
+  font-size: var(--font-size-xs, 11px);
+  color: var(--color-text-muted);
+  display: flex;
+  gap: 6px;
+}
+
+.syncSep {
+  color: var(--color-border-hover, #333);
+}
+
+.syncActions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.syncTriggerBtn {
+  background: var(--color-accent, #7c6af7);
+  border-color: var(--color-accent, #7c6af7);
+  color: white;
+}
+
+.syncTriggerBtn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-accent, #7c6af7) 85%, black);
+}

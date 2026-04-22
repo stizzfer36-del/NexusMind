@@ -218,3 +218,46 @@
   color: var(--color-border-hover, #2a2a2a);
   font-size: var(--font-size-xs, 11px);
 }
+
+/* ─── Sync chip ─── */
+
+.syncChip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-sm, 4px);
+  color: var(--color-text-muted);
+  position: relative;
+  transition: color var(--transition-fast, 80ms), background var(--transition-fast, 80ms);
+}
+
+.syncChip:hover {
+  color: var(--color-text);
+  background: var(--color-surface-2, #1a1a1a);
+}
+
+.syncChipError {
+  color: #f85149;
+}
+
+.syncChipProgress {
+  color: var(--color-accent, #7c6af7);
+  animation: syncSpin 1s linear infinite;
+}
+
+@keyframes syncSpin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+.syncBadge {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #f85149;
+}

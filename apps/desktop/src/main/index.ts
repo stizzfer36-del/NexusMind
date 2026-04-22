@@ -19,6 +19,7 @@ import { GraphService } from './services/graph/GraphService.js'
 import { GuardService } from './services/GuardService.js'
 import { VoiceService } from './services/VoiceService.js'
 import { LinkService } from './services/LinkService.js'
+import { SyncService } from './services/SyncService.js'
 
 async function safeInit(name: string, fn: () => void | Promise<void>): Promise<void> {
   try {
@@ -80,6 +81,9 @@ async function bootstrap(): Promise<void> {
   const linkService = new LinkService()
   await safeInit('LinkService', () => linkService.init())
 
+  const syncService = new SyncService()
+  await safeInit('SyncService', () => syncService.init())
+
   const router = new IPCRouter()
   const allHandlers: Record<string, any> = {
     ...channels,
@@ -98,6 +102,7 @@ async function bootstrap(): Promise<void> {
     ...guardService.getHandlers(),
     ...voiceService.getHandlers(),
     ...linkService.getHandlers(),
+    ...syncService.getHandlers(),
   }
   router.registerAll(allHandlers)
 

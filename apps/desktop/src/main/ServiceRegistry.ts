@@ -14,6 +14,7 @@ export const SERVICE_TOKENS = {
   EventRecorder: 'EventRecorder',
   GuardService: 'GuardService',
   LinkService: 'LinkService',
+  SyncService: 'SyncService',
 } as const
 
 export class ServiceRegistry {

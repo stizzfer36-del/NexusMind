@@ -33,6 +33,8 @@ import type {
   WorkflowRunRequest,
   StreamChunk,
   LinkConfig,
+  SyncConfig,
+  SyncSummary,
 } from './types/index.js'
 
 // ---------------------------------------------------------------------------
@@ -152,6 +154,12 @@ export interface IpcEvents {
   // link
   'link:getConfig': () => LinkConfig
   'link:setConfig': (config: LinkConfig) => void
+
+  // sync
+  'sync:getConfig': () => SyncConfig
+  'sync:setConfig': (config: SyncConfig) => void
+  'sync:getSummary': () => SyncSummary
+  'sync:trigger': () => SyncSummary
 }
 
 // ---------------------------------------------------------------------------
@@ -201,4 +209,7 @@ export interface IpcRendererEvents {
 
   // link
   'link:statusChange': (status: { running: boolean; clientCount: number }) => void
+
+  // sync
+  'sync:statusChange': (summary: SyncSummary) => void
 }

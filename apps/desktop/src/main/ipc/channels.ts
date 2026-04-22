@@ -104,4 +104,10 @@ export const channels: HandlerMap = {
   // link
   'link:getConfig': stub,
   'link:setConfig': stub,
+
+  // sync
+  'sync:getConfig': stub,
+  'sync:setConfig': stub,
+  'sync:getSummary': stub,
+  'sync:trigger': stub,
 }
