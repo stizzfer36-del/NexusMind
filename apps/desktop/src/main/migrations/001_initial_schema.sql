@@ -1,9 +1,3 @@
-CREATE TABLE IF NOT EXISTS migrations (
-  version INTEGER PRIMARY KEY,
-  name TEXT NOT NULL,
-  applied_at INTEGER NOT NULL
-);
-
 CREATE TABLE IF NOT EXISTS conversations (
   id TEXT PRIMARY KEY,
   title TEXT,
@@ -111,3 +105,32 @@ CREATE TABLE IF NOT EXISTS guard_findings (
 );
 
 CREATE INDEX IF NOT EXISTS idx_guard_findings_run ON guard_findings(run_id);
+
+CREATE TABLE IF NOT EXISTS workflow_graphs (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  description TEXT,
+  dag_json TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS replay_events (
+  id TEXT PRIMARY KEY,
+  session_id TEXT NOT NULL,
+  type TEXT NOT NULL,
+  timestamp INTEGER NOT NULL,
+  node_id TEXT,
+  agent_id TEXT,
+  payload TEXT NOT NULL,
+  duration_ms INTEGER
+);
+
+CREATE INDEX IF NOT EXISTS idx_replay_session
+  ON replay_events(session_id, timestamp ASC);
+
+CREATE TABLE IF NOT EXISTS replay_sessions (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  started_at INTEGER NOT NULL
+);

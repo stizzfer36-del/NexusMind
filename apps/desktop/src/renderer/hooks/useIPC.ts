@@ -31,6 +31,8 @@ export function useIPC<K extends keyof IpcEvents>() {
         }
         return result
       } catch (err) {
+        const message = err instanceof Error ? err.message : String(err)
+        console.error(`[useIPC] invoke failed on channel "${String(channel)}":`, message)
         if (mountedRef.current) {
           setError(err instanceof Error ? err : new Error(String(err)))
           setLoading(false)

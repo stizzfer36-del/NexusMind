@@ -37,24 +37,24 @@ export function runMigrations(db: Database.Database): void {
 
   // Ensure the migrations tracking table exists.
   db.exec(`
-    CREATE TABLE IF NOT EXISTS migrations (
-      version INTEGER PRIMARY KEY,
-      name TEXT NOT NULL,
-      applied_at INTEGER NOT NULL
+    CREATE TABLE IF NOT EXISTS _migrations (
+      id INTEGER PRIMARY KEY,
+      name TEXT NOT NULL UNIQUE,
+      run_at TEXT NOT NULL
     )
   `)
 
   const checkStmt = db.prepare(
-    'SELECT COUNT(*) as count FROM migrations WHERE version = $version'
+    'SELECT 1 as found FROM _migrations WHERE name = ?'
   )
 
   const insertStmt = db.prepare(
-    'INSERT INTO migrations (version, name, applied_at) VALUES ($version, $name, $applied_at)'
+    'INSERT INTO _migrations (name, run_at) VALUES (?, ?)'
   )
 
   for (const migration of migrations) {
-    const result = checkStmt.get({ version: migration.version }) as { count: number } | undefined
-    if (result && result.count > 0) {
+    const result = checkStmt.get(migration.name) as { found: number } | undefined
+    if (result) {
       continue
     }
 
@@ -62,11 +62,7 @@ export function runMigrations(db: Database.Database): void {
 
     const apply = db.transaction(() => {
       db.exec(migration.sql)
-      insertStmt.run({
-        version: migration.version,
-        name: migration.name,
-        applied_at: Date.now(),
-      })
+      insertStmt.run(migration.name, new Date().toISOString())
     })
 
     apply()

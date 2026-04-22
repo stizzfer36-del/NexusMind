@@ -2,7 +2,7 @@ import Database from 'better-sqlite3'
 import { app } from 'electron'
 import path from 'path'
 import { ServiceRegistry, SERVICE_TOKENS } from '../ServiceRegistry.js'
-import { runMigrations } from './migrations/runner.js'
+import { runMigrations } from '../migrations/runner.js'
 
 export class DatabaseService {
   private db!: Database.Database
