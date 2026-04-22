@@ -16,7 +16,7 @@ export default defineConfig({
       },
       outDir: path.resolve(__dirname, 'apps/desktop/out/main'),
       rollupOptions: {
-        external: ['better-sqlite3', 'keytar', 'node-pty'],
+        external: ['better-sqlite3', 'keytar', 'node-pty', 'ws', 'bufferutil', 'utf-8-validate'],
       },
     },
     resolve: {

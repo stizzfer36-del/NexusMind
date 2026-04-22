@@ -1,14 +1,15 @@
 import React, { useCallback, useEffect, useState } from 'react'
-import { useIPC } from '../../hooks'
+import { useIPC, useIPCEvent } from '../../hooks'
 import styles from './SettingsPanel.module.css'
 
-type Section = 'api-keys' | 'models' | 'appearance' | 'shortcuts' | 'about'
+type Section = 'api-keys' | 'models' | 'appearance' | 'shortcuts' | 'link' | 'about'
 
 const SECTIONS: { id: Section; label: string; icon: string }[] = [
   { id: 'api-keys', label: 'API Keys', icon: '🔑' },
   { id: 'models', label: 'Models', icon: '🤖' },
   { id: 'appearance', label: 'Appearance', icon: '🎨' },
   { id: 'shortcuts', label: 'Shortcuts', icon: '⌨️' },
+  { id: 'link', label: 'Link', icon: '🔗' },
   { id: 'about', label: 'About', icon: 'ℹ️' },
 ]
 
@@ -146,6 +147,107 @@ function ApiKeyRow({ field }: { field: ApiKeyField }) {
   )
 }
 
+function LinkSection() {
+  const [config, setConfig] = useState({ enabled: false, port: 7771, token: '' })
+  const [running, setRunning] = useState(false)
+  const [clientCount, setClientCount] = useState(0)
+  const [saving, setSaving] = useState(false)
+  const getIPC = useIPC<'link:getConfig'>()
+  const setIPC = useIPC<'link:setConfig'>()
+
+  useEffect(() => {
+    getIPC.invoke('link:getConfig').then(cfg => {
+      setConfig({ enabled: cfg.enabled, port: cfg.port, token: cfg.token ?? '' })
+      setRunning(cfg.running ?? false)
+      setClientCount(cfg.clientCount ?? 0)
+    }).catch(console.error)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useIPCEvent('link:statusChange', (status) => {
+    setRunning(status.running)
+    setClientCount(status.clientCount)
+  })
+
+  const handleSave = useCallback(async () => {
+    setSaving(true)
+    try {
+      await setIPC.invoke('link:setConfig', {
+        enabled: config.enabled,
+        port: config.port,
+        token: config.token || undefined,
+      })
+    } catch (err) {
+      console.error('Failed to save link config:', err)
+    }
+    setSaving(false)
+  }, [setIPC, config])
+
+  return (
+    <div className={styles.section}>
+      <h2 className={styles.sectionTitle}>Link</h2>
+      <p className={styles.sectionDesc}>
+        Expose terminal and swarm status over a WebSocket bridge for remote viewing.
+      </p>
+      <div className={styles.linkStatusBar}>
+        <span className={`${styles.linkStatusDot} ${running ? styles.linkStatusDotOn : styles.linkStatusDotOff}`} />
+        <span className={styles.linkStatusText}>
+          {running ? `Running on port ${config.port} · ${clientCount} client${clientCount !== 1 ? 's' : ''}` : 'Stopped'}
+        </span>
+        {running && (
+          <a
+            className={styles.linkOpenClient}
+            href={`http://localhost:${config.port}`}
+            target="_blank"
+            rel="noreferrer"
+          >
+            Open client ↗
+          </a>
+        )}
+      </div>
+      <div className={styles.fieldGroup}>
+        <label className={styles.fieldLabel}>Enable WebSocket bridge</label>
+        <button
+          type="button"
+          className={`${styles.toggle} ${config.enabled ? styles.toggleOn : ''}`}
+          onClick={() => setConfig(c => ({ ...c, enabled: !c.enabled }))}
+          aria-pressed={config.enabled}
+        >
+          <span className={styles.toggleThumb} />
+        </button>
+      </div>
+      <div className={styles.fieldGroup}>
+        <label className={styles.fieldLabel}>Port</label>
+        <input
+          type="number"
+          className={styles.fieldInput}
+          value={config.port}
+          min={1024}
+          max={65535}
+          onChange={e => setConfig(c => ({ ...c, port: Number(e.target.value) }))}
+        />
+      </div>
+      <div className={styles.fieldGroup}>
+        <label className={styles.fieldLabel}>Shared token (optional)</label>
+        <input
+          type="password"
+          className={styles.fieldInput}
+          value={config.token}
+          onChange={e => setConfig(c => ({ ...c, token: e.target.value }))}
+          placeholder="Leave empty for no auth"
+          autoComplete="off"
+        />
+      </div>
+      <button
+        className={styles.saveKeyBtn}
+        onClick={handleSave}
+        disabled={saving || setIPC.loading}
+      >
+        {saving ? 'Saving…' : 'Apply'}
+      </button>
+    </div>
+  )
+}
+
 export function SettingsPanel() {
   const [activeSection, setActiveSection] = useState<Section>('api-keys')
 
@@ -246,6 +348,8 @@ export function SettingsPanel() {
             </table>
           </div>
         )}
+
+        {activeSection === 'link' && <LinkSection />}
 
         {activeSection === 'about' && (
           <div className={styles.section}>

@@ -32,6 +32,7 @@ import type {
   WorkflowTemplate,
   WorkflowRunRequest,
   StreamChunk,
+  LinkConfig,
 } from './types/index.js'
 
 // ---------------------------------------------------------------------------
@@ -147,6 +148,10 @@ export interface IpcEvents {
   'bench:runTask': (taskId: string, config: BenchRunConfig) => BenchRunResult
   'bench:runBatch': (taskIds: string[], config: BenchRunConfig) => BenchRunResult[]
   'bench:listRuns': (filters?: { dimension?: BenchDimension; modelId?: string }) => BenchRunResult[]
+
+  // link
+  'link:getConfig': () => LinkConfig
+  'link:setConfig': (config: LinkConfig) => void
 }
 
 // ---------------------------------------------------------------------------
@@ -193,4 +198,7 @@ export interface IpcRendererEvents {
 
   // bench
   'bench:progress': (payload: { reportId: string; progress: number }) => void
+
+  // link
+  'link:statusChange': (status: { running: boolean; clientCount: number }) => void
 }

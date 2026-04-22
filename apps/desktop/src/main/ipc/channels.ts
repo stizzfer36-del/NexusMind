@@ -100,4 +100,8 @@ export const channels: HandlerMap = {
   'bench:runTask': stub,
   'bench:runBatch': stub,
   'bench:listRuns': stub,
+
+  // link
+  'link:getConfig': stub,
+  'link:setConfig': stub,
 }

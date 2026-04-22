@@ -47,6 +47,10 @@ export class PtyManager {
       let chunkCounter = 0
       proc.onData((data: string) => {
         this.pushToWindows('terminal:data', { id, data } satisfies TerminalData)
+        try {
+          const link = ServiceRegistry.getInstance().resolve(SERVICE_TOKENS.LinkService) as any
+          link.broadcast({ type: 'pty:data', payload: { id, data } })
+        } catch { /* link not ready */ }
         // Sample 1-in-20 PTY chunks for replay recording
         chunkCounter++
         if (chunkCounter % 20 === 0) {

@@ -96,6 +96,12 @@ export class SwarmService {
 
   private push(channel: string, payload: unknown): void {
     WindowManager.getInstance().get('main')?.webContents.send(channel, payload)
+    if (channel === 'swarm:update') {
+      try {
+        const link = ServiceRegistry.getInstance().resolve(SERVICE_TOKENS.LinkService) as any
+        link.broadcast({ type: 'swarm:status', payload })
+      } catch { /* link not ready */ }
+    }
   }
 
   // -------------------------------------------------------------------------

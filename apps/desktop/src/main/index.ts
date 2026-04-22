@@ -18,6 +18,7 @@ import { BenchService } from './services/BenchService.js'
 import { GraphService } from './services/graph/GraphService.js'
 import { GuardService } from './services/GuardService.js'
 import { VoiceService } from './services/VoiceService.js'
+import { LinkService } from './services/LinkService.js'
 
 async function safeInit(name: string, fn: () => void | Promise<void>): Promise<void> {
   try {
@@ -70,6 +71,9 @@ async function bootstrap(): Promise<void> {
   const voiceService = new VoiceService()
   await safeInit('VoiceService', () => voiceService.init())
 
+  const linkService = new LinkService()
+  await safeInit('LinkService', () => linkService.init())
+
   const router = new IPCRouter()
   const allHandlers: Record<string, any> = {
     ...channels,
@@ -87,6 +91,7 @@ async function bootstrap(): Promise<void> {
     ...graphService.getHandlers(),
     ...guardService.getHandlers(),
     ...voiceService.getHandlers(),
+    ...linkService.getHandlers(),
   }
   router.registerAll(allHandlers)
 
@@ -94,6 +99,7 @@ async function bootstrap(): Promise<void> {
     ptyManager.listSessions().forEach(id => {
       try { ptyManager.kill(id) } catch {}
     })
+    try { linkService.shutdown() } catch {}
   })
 
   const onboardingComplete = settings.get<boolean>('onboardingComplete', false)

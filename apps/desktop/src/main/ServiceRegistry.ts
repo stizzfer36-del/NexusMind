@@ -13,6 +13,7 @@ export const SERVICE_TOKENS = {
   GraphService: 'GraphService',
   EventRecorder: 'EventRecorder',
   GuardService: 'GuardService',
+  LinkService: 'LinkService',
 } as const
 
 export class ServiceRegistry {
