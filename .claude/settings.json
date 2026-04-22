@@ -35,7 +35,8 @@
       "Bash(echo \"BUILD_EXIT:$?\")",
       "Bash(echo \"DIST_EXIT:$?\")",
       "Bash(node packages/cli/dist/cli/bin/nexus.js run-swarm --goal \"Create a test file and write a line\" --maxAgents 2)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "Bash(pnpm --filter @nexusmind/desktop exec electron-vite build)"
     ],
     "additionalDirectories": [
       "/tmp"

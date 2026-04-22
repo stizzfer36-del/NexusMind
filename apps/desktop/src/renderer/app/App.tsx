@@ -51,6 +51,11 @@ export function App() {
 
   useEffect(() => {
     document.title = 'NexusMind'
+    if (!window.nexusAPI) {
+      // Preload not available — default to onboarding so the UI is at least visible.
+      setView('onboarding')
+      return
+    }
     window.nexusAPI
       .invoke('settings:get', 'onboardingComplete')
       .then(complete => setView(complete ? 'shell' : 'onboarding'))
