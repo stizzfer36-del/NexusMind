@@ -32,9 +32,10 @@
   flex-shrink: 0;
 }
 .micBtnActive {
-  background: rgba(239,68,68,0.25);
-  border-color: #ef4444;
-  color: #ef4444;
+  background: rgba(34,197,94,0.25);
+  border-color: #22c55e;
+  color: #22c55e;
+  animation: micPulse 1.2s ease-in-out infinite;
 }
 .micBtn:disabled {
   opacity: 0.35;
@@ -43,6 +44,11 @@
 .micBtn:focus-visible {
   outline: 2px solid var(--color-accent, #7c6af7);
   outline-offset: 2px;
+}
+
+@keyframes micPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(34,197,94,0.4); }
+  50% { box-shadow: 0 0 0 8px rgba(34,197,94,0); }
 }
 
 .statusPill {
@@ -54,7 +60,7 @@
   text-transform: uppercase;
 }
 .statusIdle { background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.4); }
-.statusListening { background: rgba(239,68,68,0.18); color: #ef4444; }
+.statusListening { background: rgba(34,197,94,0.18); color: #22c55e; }
 .statusProcessing { background: rgba(245,158,11,0.18); color: #f59e0b; }
 .statusSpeaking { background: rgba(34,197,94,0.18); color: #22c55e; }
 .statusError { background: rgba(239,68,68,0.18); color: #ef4444; }
@@ -69,7 +75,7 @@
 .waveBar {
   width: 3px;
   border-radius: 2px;
-  background: #ef4444;
+  background: #22c55e;
   transition: height 80ms ease;
 }
 

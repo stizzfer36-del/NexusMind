@@ -21,10 +21,11 @@ export function useIPC<K extends keyof IpcEvents>() {
       setLoading(true)
       setError(null)
       try {
-        if (!window.nexusAPI) {
-          throw new Error(`[useIPC] window.nexusAPI unavailable — preload may not have loaded (channel: ${String(channel)})`)
+        if (typeof window === 'undefined' || !window.electronAPI?.invoke) {
+          console.error(`[useIPC] window.electronAPI not available. Channel: ${String(channel)}`)
+          throw new Error('IPC bridge not initialized')
         }
-        const result = await window.nexusAPI.invoke(channel, ...args)
+        const result = await window.electronAPI.invoke(channel, ...args)
         if (mountedRef.current) {
           setLoading(false)
         }
@@ -51,11 +52,11 @@ export function useIPCEvent<K extends keyof IpcRendererEvents>(
   callbackRef.current = callback
 
   useEffect(() => {
-    if (!window.nexusAPI) {
-      console.error(`[useIPCEvent] window.nexusAPI is undefined — preload did not load (channel: ${String(channel)})`)
+    if (typeof window === 'undefined' || !window.electronAPI?.on) {
+      console.error(`[useIPCEvent] window.electronAPI is undefined — preload did not load (channel: ${String(channel)})`)
       return
     }
-    const unsubscribe = window.nexusAPI.on(
+    const unsubscribe = window.electronAPI.on(
       channel,
       ((...args: Parameters<IpcRendererEvents[K]>) => {
         ;(callbackRef.current as (...args: any[]) => void)(...args)

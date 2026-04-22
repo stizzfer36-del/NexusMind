@@ -24,12 +24,15 @@ export function KanbanPanel() {
   const [editingTask, setEditingTask] = useState<Task | null>(null)
   const [addingToColumn, setAddingToColumn] = useState<ColumnId | null>(null)
   const [newTaskTitle, setNewTaskTitle] = useState('')
+  const [newTaskDescription, setNewTaskDescription] = useState('')
+  const [newTaskPriority, setNewTaskPriority] = useState<Task['priority']>('medium')
+  const [newTaskTags, setNewTaskTags] = useState('')
   const [dragOverColumn, setDragOverColumn] = useState<ColumnId | null>(null)
   const dragTaskRef = useRef<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
 
-  const listIPC = useIPC<'kanban:listTasks'>()
+  const listIPC = useIPC<'kanban:getTasks'>()
   const createIPC = useIPC<'kanban:createTask'>()
   const updateIPC = useIPC<'kanban:updateTask'>()
   const deleteIPC = useIPC<'kanban:deleteTask'>()
@@ -38,7 +41,7 @@ export function KanbanPanel() {
   // Load tasks
   useEffect(() => {
     setLoading(true)
-    listIPC.invoke('kanban:listTasks')
+    listIPC.invoke('kanban:getTasks')
       .then(res => { if (Array.isArray(res)) setTasks(res) })
       .catch(err => setLoadError(String(err)))
       .finally(() => setLoading(false))
@@ -96,25 +99,29 @@ export function KanbanPanel() {
 
   const handleAddTask = useCallback(async (col: ColumnId) => {
     if (!newTaskTitle.trim()) return
+    const tags = newTaskTags.split(',').map(t => t.trim()).filter(Boolean)
     try {
       const result = await createIPC.invoke('kanban:createTask', {
         title: newTaskTitle.trim(),
-        description: '',
+        description: newTaskDescription.trim(),
         status: 'todo' as any,
         column: col as any,
         subtasks: [],
-        tags: [],
-        priority: 'medium',
+        tags,
+        priority: newTaskPriority,
       })
       if (result && 'id' in result) {
         setTasks(prev => [...prev, result as Task])
       }
       setNewTaskTitle('')
+      setNewTaskDescription('')
+      setNewTaskPriority('medium')
+      setNewTaskTags('')
       setAddingToColumn(null)
     } catch (err) {
       console.error('Failed to create task:', err)
     }
-  }, [createIPC, newTaskTitle])
+  }, [createIPC, newTaskTitle, newTaskDescription, newTaskPriority, newTaskTags])
 
   const handleDeleteTask = useCallback(async (taskId: string) => {
     try {
@@ -174,6 +181,9 @@ export function KanbanPanel() {
                     onClick={() => {
                       setAddingToColumn(col.id)
                       setNewTaskTitle('')
+                      setNewTaskDescription('')
+                      setNewTaskPriority('medium')
+                      setNewTaskTags('')
                     }}
                     title="Add task"
                   >
@@ -195,6 +205,31 @@ export function KanbanPanel() {
                       }}
                       autoFocus
                     />
+                    <textarea
+                      className={styles.addTextarea}
+                      placeholder="Description (optional)"
+                      value={newTaskDescription}
+                      onChange={e => setNewTaskDescription(e.target.value)}
+                      rows={2}
+                    />
+                    <div className={styles.addRow}>
+                      <select
+                        className={styles.addSelect}
+                        value={newTaskPriority}
+                        onChange={e => setNewTaskPriority(e.target.value as Task['priority'])}
+                      >
+                        <option value="low">Low</option>
+                        <option value="medium">Medium</option>
+                        <option value="high">High</option>
+                        <option value="critical">Critical</option>
+                      </select>
+                      <input
+                        className={styles.addInput}
+                        placeholder="Tags (comma separated)"
+                        value={newTaskTags}
+                        onChange={e => setNewTaskTags(e.target.value)}
+                      />
+                    </div>
                     <div className={styles.addActions}>
                       <button className={styles.addConfirm} onClick={() => handleAddTask(col.id)}>Add</button>
                       <button className={styles.addCancel} onClick={() => setAddingToColumn(null)}>Cancel</button>
@@ -211,7 +246,21 @@ export function KanbanPanel() {
                       draggable
                       onDragStart={e => onDragStart(e, task.id)}
                       onClick={() => setEditingTask(task)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          setEditingTask(task)
+                        }
+                        if (e.key === 'Delete') {
+                          e.preventDefault()
+                          if (confirm('Delete this task?')) {
+                            handleDeleteTask(task.id)
+                          }
+                        }
+                      }}
+                      tabIndex={0}
                       role="article"
+                      aria-label={`Task: ${task.title}. Priority ${task.priority}. Press Enter to edit, Delete to remove.`}
                     >
                       <div className={styles.cardTitle}>{task.title}</div>
                       <div className={styles.cardMeta}>
@@ -242,15 +291,15 @@ export function KanbanPanel() {
         </div>
       )}
 
-      {/* Edit modal */}
+      {/* Edit drawer */}
       {editingTask && (
-        <div className={styles.modalOverlay} onClick={() => setEditingTask(null)}>
-          <div className={styles.modal} onClick={e => e.stopPropagation()}>
-            <div className={styles.modalHeader}>
-              <h3 className={styles.modalTitle}>Edit Task</h3>
-              <button className={styles.modalClose} onClick={() => setEditingTask(null)}>×</button>
+        <div className={styles.drawerOverlay} onClick={() => setEditingTask(null)}>
+          <div className={styles.drawer} onClick={e => e.stopPropagation()}>
+            <div className={styles.drawerHeader}>
+              <h3 className={styles.drawerTitle}>Task Detail</h3>
+              <button className={styles.drawerClose} onClick={() => setEditingTask(null)}>×</button>
             </div>
-            <div className={styles.modalBody}>
+            <div className={styles.drawerBody}>
               <label className={styles.fieldLabel}>Title</label>
               <input
                 className={styles.fieldInput}
@@ -264,6 +313,18 @@ export function KanbanPanel() {
                 onChange={e => setEditingTask({ ...editingTask, description: e.target.value })}
                 rows={4}
               />
+              <label className={styles.fieldLabel}>Status</label>
+              <select
+                className={styles.fieldSelect}
+                value={editingTask.status}
+                onChange={e => setEditingTask({ ...editingTask, status: e.target.value as Task['status'] })}
+              >
+                <option value="todo">To Do</option>
+                <option value="in_progress">In Progress</option>
+                <option value="in_review">In Review</option>
+                <option value="done">Done</option>
+                <option value="archived">Archived</option>
+              </select>
               <label className={styles.fieldLabel}>Priority</label>
               <select
                 className={styles.fieldSelect}
@@ -275,8 +336,12 @@ export function KanbanPanel() {
                 <option value="high">High</option>
                 <option value="critical">Critical</option>
               </select>
+              <label className={styles.fieldLabel}>Created</label>
+              <div className={styles.readOnly}>
+                {new Date(editingTask.createdAt).toLocaleString()}
+              </div>
             </div>
-            <div className={styles.modalFooter}>
+            <div className={styles.drawerFooter}>
               <button className={styles.deleteBtn} onClick={() => handleDeleteTask(editingTask.id)}>Delete</button>
               <div className={styles.modalActions}>
                 <button className={styles.cancelBtn} onClick={() => setEditingTask(null)}>Cancel</button>

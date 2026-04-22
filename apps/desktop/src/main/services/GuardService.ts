@@ -1,7 +1,27 @@
 import crypto from 'crypto'
+import { execSync } from 'child_process'
 import { ServiceRegistry, SERVICE_TOKENS } from '../ServiceRegistry.js'
 import type { GuardFinding, GuardRun, GuardPolicy, GuardSeverity } from '@nexusmind/shared'
 import { runSemgrepScan, runNpmAudit, runSecretsScan } from './GuardScanners.js'
+import { WindowManager } from '../windows/WindowManager.js'
+
+function isOnPath(cmd: string): boolean {
+  try {
+    execSync(`command -v ${cmd}`, { stdio: 'ignore', timeout: 5000 })
+    return true
+  } catch {
+    return false
+  }
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error('Scanner timed out')), ms)
+    ),
+  ])
+}
 
 export class GuardService {
   private policy: GuardPolicy = { blockOn: ['CRITICAL'] }
@@ -28,6 +48,10 @@ export class GuardService {
     this.db.prepare(`INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES (?, ?, ?)`).run('guardPolicy', JSON.stringify(policy), Date.now())
   }
 
+  private push(channel: string, payload: unknown): void {
+    WindowManager.getInstance().get('main')?.webContents.send(channel, payload)
+  }
+
   async runGuard(): Promise<{ runId: string }> {
     const runId = crypto.randomUUID()
     const startedAt = Date.now()
@@ -37,35 +61,53 @@ export class GuardService {
       VALUES (?, ?, 'RUNNING', 0, 0, 0, 0, 0)
     `).run(runId, startedAt)
 
-    try {
-      const [r1, r2, r3] = await Promise.all([
-        runSemgrepScan(runId),
-        runNpmAudit(runId),
-        runSecretsScan(runId),
-      ])
+    const scannerDefs = [
+      { key: 'semgrep', cmd: 'semgrep', run: () => runSemgrepScan(runId) },
+      { key: 'npm-audit', cmd: 'npm', run: () => runNpmAudit(runId) },
+      { key: 'trufflehog', cmd: 'trufflehog', run: () => runSecretsScan(runId) },
+    ]
 
-      const allFindings = [...r1.findings, ...r2.findings, ...r3.findings]
+    const allFindings: GuardFinding[] = []
+    const scannerStatus: Record<string, string> = {}
 
-      const insertFinding = this.db.prepare(`
-        INSERT INTO guard_findings (id, run_id, source, severity, rule_id, file_path, line, col, message, recommendation, snippet)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `)
-
-      for (const f of allFindings) {
-        insertFinding.run(f.id, f.runId, f.source, f.severity, f.ruleId, f.filePath, f.line ?? null, f.column ?? null, f.message, f.recommendation ?? null, f.snippet ?? null)
+    for (const def of scannerDefs) {
+      const available = isOnPath(def.cmd)
+      if (!available) {
+        scannerStatus[def.key] = 'not-installed'
+        this.push('guard:progress', { scanner: def.key, status: 'not-installed', findings: [] })
+        continue
       }
 
-      const counts: Record<GuardSeverity, number> = { LOW: 0, MEDIUM: 0, HIGH: 0, CRITICAL: 0 }
-      for (const f of allFindings) counts[f.severity] = (counts[f.severity] ?? 0) + 1
-
-      this.db.prepare(`
-        UPDATE guard_runs SET status = 'COMPLETED', finished_at = ?, total_findings = ?, low_count = ?, medium_count = ?, high_count = ?, critical_count = ?
-        WHERE id = ?
-      `).run(Date.now(), allFindings.length, counts.LOW, counts.MEDIUM, counts.HIGH, counts.CRITICAL, runId)
-
-    } catch (err) {
-      this.db.prepare(`UPDATE guard_runs SET status = 'FAILED', finished_at = ? WHERE id = ?`).run(Date.now(), runId)
+      try {
+        const result = await withTimeout(def.run(), 30000)
+        scannerStatus[def.key] = 'completed'
+        const findings = result.findings ?? []
+        allFindings.push(...findings)
+        this.push('guard:progress', { scanner: def.key, status: 'completed', findings })
+      } catch (err) {
+        scannerStatus[def.key] = 'failed'
+        this.push('guard:progress', { scanner: def.key, status: 'failed', findings: [] })
+      }
     }
+
+    const insertFinding = this.db.prepare(`
+      INSERT INTO guard_findings (id, run_id, source, severity, rule_id, file_path, line, col, message, recommendation, snippet)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `)
+
+    for (const f of allFindings) {
+      insertFinding.run(f.id, f.runId, f.source, f.severity, f.ruleId, f.filePath, f.line ?? null, f.column ?? null, f.message, f.recommendation ?? null, f.snippet ?? null)
+    }
+
+    const counts: Record<GuardSeverity, number> = { LOW: 0, MEDIUM: 0, HIGH: 0, CRITICAL: 0 }
+    for (const f of allFindings) counts[f.severity] = (counts[f.severity] ?? 0) + 1
+
+    this.db.prepare(`
+      UPDATE guard_runs SET status = 'COMPLETED', finished_at = ?, total_findings = ?, low_count = ?, medium_count = ?, high_count = ?, critical_count = ?
+      WHERE id = ?
+    `).run(Date.now(), allFindings.length, counts.LOW, counts.MEDIUM, counts.HIGH, counts.CRITICAL, runId)
+
+    this.push('guard:complete', { runId, findings: allFindings })
 
     return { runId }
   }

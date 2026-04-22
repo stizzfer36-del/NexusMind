@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useIPC } from '../../hooks'
+import { useIPC, useIPCEvent } from '../../hooks'
 import type { GuardFinding, GuardRun, GuardPolicy, GuardSeverity } from '@nexusmind/shared'
 import styles from './GuardPanel.module.css'
 
@@ -26,6 +26,7 @@ export function GuardPanel() {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [sevFilter, setSevFilter] = useState<GuardSeverity | 'all'>('all')
   const [sourceFilter, setSourceFilter] = useState<string>('all')
+  const [scannerStatus, setScannerStatus] = useState<Record<string, string>>({})
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const loadRuns = useCallback(async () => {
@@ -46,6 +47,22 @@ export function GuardPanel() {
     getPolicyIPC.invoke('guard:getPolicy').then(setPolicy).catch(() => {})
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
+  useIPCEvent('guard:progress', useCallback((payload: { scanner: string; status: string; findings: GuardFinding[] }) => {
+    setScannerStatus(prev => ({ ...prev, [payload.scanner]: payload.status }))
+    if (payload.findings.length > 0) {
+      setFindings(prev => [...prev, ...payload.findings])
+    }
+  }, []))
+
+  useIPCEvent('guard:complete', useCallback((payload: { runId: string; findings: GuardFinding[] }) => {
+    setRunning(false)
+    setFindings(payload.findings)
+    loadRuns()
+    getRunIPC.invoke('guard:getRun', payload.runId).then(r => {
+      if (r) setSelectedRun(r)
+    }).catch(() => {})
+  }, [loadRuns, getRunIPC]))
+
   const selectRun = useCallback(async (run: GuardRun) => {
     setSelectedRun(run)
     try {
@@ -57,9 +74,10 @@ export function GuardPanel() {
   const handleRunGuard = useCallback(async () => {
     setRunning(true)
     setError(null)
+    setScannerStatus({})
     try {
       const { runId } = await runGuardIPC.invoke('guard:run')
-      // Poll until completed
+      // Poll until completed as a fallback
       pollRef.current = setInterval(async () => {
         const r = await getRunIPC.invoke('guard:getRun', runId)
         if (r && (r.status === 'COMPLETED' || r.status === 'FAILED')) {
@@ -100,11 +118,14 @@ export function GuardPanel() {
 
   const summary = selectedRun?.summary
 
+  const isBlocking = policy.blockOn.includes('CRITICAL') && (summary?.bySeverity.CRITICAL ?? 0) > 0
+
   return (
     <div className={styles.root}>
       {/* Top bar */}
       <div className={styles.topBar}>
         <button className={styles.runBtn} onClick={handleRunGuard} disabled={running}>
+          {running && <span className={styles.spinner} />}
           {running ? 'Scanning…' : 'Run Guard'}
         </button>
         {summary && (
@@ -125,6 +146,12 @@ export function GuardPanel() {
           </span>
         )}
       </div>
+
+      {isBlocking && (
+        <div className={styles.blockingBanner}>
+          Blocking: {summary.bySeverity.CRITICAL} Critical finding{summary.bySeverity.CRITICAL !== 1 ? 's' : ''} detected. Review before shipping.
+        </div>
+      )}
 
       {error && (
         <div className={styles.errorBar}>
@@ -229,13 +256,28 @@ export function GuardPanel() {
           <div style={{ marginTop: 16 }}>
             <div className={styles.rightHeader}>Scanners</div>
             {(['semgrep', 'npm-audit', 'trufflehog'] as const).map(src => {
+              const status = scannerStatus[src]
               const count = findings.filter(f => f.source === src).length
+              const installed = status !== 'not-installed'
               return (
-                <div key={src} style={{ fontSize: 11, color: 'var(--color-text-muted)', marginBottom: 4 }}>
-                  {src}: {selectedRun ? `${count} findings` : '—'}
+                <div key={src} className={styles.scannerRow}>
+                  <span>{src}</span>
+                  {status ? (
+                    <span className={installed ? styles.scannerInstalled : styles.scannerMissing}>
+                      {installed ? `${count} findings` : 'not installed'}
+                    </span>
+                  ) : (
+                    <span style={{ color: 'var(--color-text-muted)' }}>—</span>
+                  )}
                 </div>
               )
             })}
+            <div style={{ fontSize: 10, color: 'var(--color-text-muted)', marginTop: 6, lineHeight: 1.4 }}>
+              Install missing scanners:<br />
+              • semgrep: pip install semgrep<br />
+              • npm: included with Node.js<br />
+              • trufflehog: brew install trufflehog
+            </div>
           </div>
         </div>
       </div>

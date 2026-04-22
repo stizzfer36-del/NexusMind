@@ -26,6 +26,9 @@
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 .runBtn:disabled {
   opacity: 0.4;
@@ -34,6 +37,29 @@
 .runBtn:focus-visible {
   outline: 2px solid #fff;
   outline-offset: 2px;
+}
+
+.spinner {
+  width: 12px;
+  height: 12px;
+  border: 2px solid rgba(255,255,255,0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.blockingBanner {
+  padding: 8px 16px;
+  background: rgba(249,115,22,0.15);
+  color: #f97316;
+  font-size: 12px;
+  font-weight: 600;
+  border-bottom: 1px solid rgba(249,115,22,0.25);
+  flex-shrink: 0;
 }
 
 .summaryChips {
@@ -293,4 +319,21 @@
   border-bottom: 1px solid rgba(239,68,68,0.2);
   display: flex;
   justify-content: space-between;
+}
+
+.scannerRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--color-text-muted);
+  margin-bottom: 4px;
+}
+
+.scannerInstalled {
+  color: var(--color-green, #22c55e);
+}
+
+.scannerMissing {
+  color: var(--color-red, #ef4444);
 }

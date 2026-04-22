@@ -91,6 +91,7 @@ export class SwarmService {
       updatedAt: now,
     }
     this.sessions.set(session.id, session)
+    this.push('swarm:sessionCreated', session)
     return session
   }
 
@@ -252,6 +253,7 @@ export class SwarmService {
     state: AgentGraphState,
     agentId: string,
   ): Promise<AgentGraphState> {
+    // TODO: wire LLM here (v0.0.1 stub — actual LLM routing below)
     // Check cancellation first
     if (state.cancelled) return state
 

@@ -3,7 +3,7 @@ import type { IpcEvents, IpcRendererEvents } from '@nexusmind/shared/ipc-channel
 
 const listenerMap = new WeakMap<Function, Function>()
 
-const nexusAPI = {
+const electronAPI = {
   invoke<K extends keyof IpcEvents>(
     channel: K,
     ...args: Parameters<IpcEvents[K]>
@@ -46,4 +46,4 @@ const nexusAPI = {
   },
 }
 
-contextBridge.exposeInMainWorld('nexusAPI', nexusAPI)
+contextBridge.exposeInMainWorld('electronAPI', electronAPI)

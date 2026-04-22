@@ -1,4 +1,4 @@
-import { app } from 'electron'
+import { app, Menu } from 'electron'
 import { WindowManager } from './windows/WindowManager.js'
 import { createMainWindow } from './windows/MainWindow.js'
 import { IPCRouter } from './ipc/IPCRouter.js'
@@ -117,6 +117,24 @@ async function bootstrap(): Promise<void> {
 
   console.log('[bootstrap] opening main window')
   createMainWindow()
+
+  // Register Edit menu for clipboard passthrough
+  Menu.setApplicationMenu(
+    Menu.buildFromTemplate([
+      {
+        label: 'Edit',
+        submenu: [
+          { role: 'undo' },
+          { role: 'redo' },
+          { type: 'separator' },
+          { role: 'cut' },
+          { role: 'copy' },
+          { role: 'paste' },
+          { role: 'selectAll' },
+        ],
+      },
+    ])
+  )
 
   // Broadcast service health to renderer once it loads
   if (failedServices.length > 0) {

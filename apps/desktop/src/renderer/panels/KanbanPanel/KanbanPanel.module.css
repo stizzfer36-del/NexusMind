@@ -94,6 +94,9 @@
   padding: var(--space-2, 8px) var(--space-3, 12px);
   border-bottom: 1px solid var(--color-border);
   flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1, 4px);
 }
 
 .addInput {
@@ -106,10 +109,49 @@
   color: var(--color-text);
   outline: none;
   transition: border-color var(--transition-fast, 80ms ease);
+  box-sizing: border-box;
 }
 
 .addInput:focus {
   border-color: var(--color-accent);
+}
+
+.addTextarea {
+  width: 100%;
+  background: var(--color-surface-2, #1a1a1a);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm, 3px);
+  padding: var(--space-1, 4px) var(--space-2, 8px);
+  font-size: var(--font-size-sm, 12px);
+  color: var(--color-text);
+  outline: none;
+  transition: border-color var(--transition-fast, 80ms ease);
+  resize: vertical;
+  min-height: 40px;
+  box-sizing: border-box;
+}
+
+.addTextarea:focus {
+  border-color: var(--color-accent);
+}
+
+.addSelect {
+  background: var(--color-surface-2, #1a1a1a);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm, 3px);
+  padding: var(--space-1, 4px) var(--space-2, 8px);
+  font-size: var(--font-size-sm, 12px);
+  color: var(--color-text);
+  outline: none;
+}
+
+.addSelect:focus {
+  border-color: var(--color-accent);
+}
+
+.addRow {
+  display: flex;
+  gap: var(--space-1, 4px);
 }
 
 .addActions {
@@ -174,6 +216,11 @@
   opacity: 0.85;
 }
 
+.card:focus-visible {
+  outline: 2px solid var(--color-accent, #7c6af7);
+  outline-offset: 2px;
+}
+
 .cardTitle {
   font-size: var(--font-size-sm, 12px);
   color: var(--color-text);
@@ -233,44 +280,44 @@
   color: var(--color-text-muted);
 }
 
-/* ─── Edit modal ─── */
+/* ─── Edit drawer ─── */
 
-.modalOverlay {
+.drawerOverlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.6);
+  background: rgba(0, 0, 0, 0.55);
   display: flex;
-  align-items: center;
-  justify-content: center;
+  justify-content: flex-end;
   z-index: var(--z-modal, 400);
 }
 
-.modal {
+.drawer {
   background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg, 10px);
-  width: 480px;
+  border-left: 1px solid var(--color-border);
+  width: 420px;
   max-width: 90vw;
   box-shadow: var(--shadow-xl, 0 16px 40px rgba(0,0,0,0.7));
   display: flex;
   flex-direction: column;
+  height: 100%;
 }
 
-.modalHeader {
+.drawerHeader {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: var(--space-4, 16px);
   border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
 }
 
-.modalTitle {
+.drawerTitle {
   font-size: var(--font-size-md, 14px);
   font-weight: var(--font-weight-semibold, 600);
   color: var(--color-text);
 }
 
-.modalClose {
+.drawerClose {
   width: 24px;
   height: 24px;
   font-size: 18px;
@@ -279,16 +326,18 @@
   transition: color var(--transition-fast, 80ms), background var(--transition-fast, 80ms);
 }
 
-.modalClose:hover {
+.drawerClose:hover {
   color: var(--color-text);
   background: var(--color-surface-2, #1a1a1a);
 }
 
-.modalBody {
+.drawerBody {
   padding: var(--space-4, 16px);
   display: flex;
   flex-direction: column;
   gap: var(--space-3, 12px);
+  overflow-y: auto;
+  flex: 1;
 }
 
 .fieldLabel {
@@ -312,6 +361,7 @@
   font-size: var(--font-size-base, 13px);
   color: var(--color-text);
   transition: border-color var(--transition-fast, 80ms ease);
+  box-sizing: border-box;
 }
 
 .fieldInput:focus,
@@ -340,12 +390,19 @@
   background: var(--color-surface-2, #1a1a1a);
 }
 
-.modalFooter {
+.readOnly {
+  font-size: var(--font-size-sm, 12px);
+  color: var(--color-text-muted);
+  padding: var(--space-1, 4px) 0;
+}
+
+.drawerFooter {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: var(--space-3, 12px) var(--space-4, 16px);
   border-top: 1px solid var(--color-border);
+  flex-shrink: 0;
 }
 
 .modalActions {

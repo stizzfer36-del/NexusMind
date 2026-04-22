@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
+// TODO: install @xterm/addon-clipboard for native clipboard support
+// import { ClipboardAddon } from '@xterm/addon-clipboard'
 import '@xterm/xterm/css/xterm.css'
 import { useIPC, useIPCEvent } from '../../hooks'
 import styles from './TerminalPanel.module.css'
@@ -13,9 +15,16 @@ interface TerminalSession {
   fitAddon: FitAddon
 }
 
+interface ContextMenuState {
+  x: number
+  y: number
+  sessionId: string
+}
+
 export function TerminalPanel() {
   const [sessions, setSessions] = useState<TerminalSession[]>([])
   const [activeId, setActiveId] = useState<string | null>(null)
+  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null)
   const terminalRefs = useRef<Map<string, HTMLDivElement>>(new Map())
   const sessionsRef = useRef<Map<string, TerminalSession>>(new Map())
   const { invoke } = useIPC<'terminal:spawn'>()
@@ -23,8 +32,20 @@ export function TerminalPanel() {
   const resizeIPC = useIPC<'terminal:resize'>()
   const killIPC = useIPC<'terminal:kill'>()
 
+  // Close context menu on click elsewhere
+  useEffect(() => {
+    if (!contextMenu) return
+    const close = () => setContextMenu(null)
+    window.addEventListener('click', close)
+    return () => window.removeEventListener('click', close)
+  }, [contextMenu])
+
   // Spawn a new terminal session
   const spawnSession = useCallback(async () => {
+    if (typeof window === 'undefined' || !window.electronAPI?.invoke) {
+      console.warn('IPC bridge not ready')
+      return
+    }
     try {
       const result = await invoke('terminal:spawn', '/bin/bash')
       if (!result || !('id' in result) || !(result as any).id) {
@@ -66,9 +87,13 @@ export function TerminalPanel() {
       })
       const fitAddon = new FitAddon()
       term.loadAddon(fitAddon)
+      // TODO: load ClipboardAddon when package is installed
+      // term.loadAddon(new ClipboardAddon())
 
       term.onData((data) => {
-        writeIPC.invoke('terminal:write', { id: session.id, data })
+        if (typeof window !== 'undefined' && window.electronAPI?.invoke) {
+          writeIPC.invoke('terminal:write', { id: session.id, data })
+        }
       })
 
       const newSession: TerminalSession = {
@@ -109,6 +134,7 @@ export function TerminalPanel() {
     if (container.children.length === 0) {
       session.terminal.open(container)
       session.fitAddon.fit()
+      session.terminal.focus()
     }
   }, [activeId, sessions])
 
@@ -139,7 +165,7 @@ export function TerminalPanel() {
       try {
         session.fitAddon.fit()
         const dims = session.fitAddon.proposeDimensions()
-        if (dims) {
+        if (dims && typeof window !== 'undefined' && window.electronAPI?.invoke) {
           resizeIPC.invoke('terminal:resize', { id: activeId, cols: dims.cols, rows: dims.rows })
         }
       } catch {
@@ -151,7 +177,9 @@ export function TerminalPanel() {
   }, [activeId, sessions, resizeIPC])
 
   const closeSession = useCallback((id: string) => {
-    killIPC.invoke('terminal:kill', id)
+    if (typeof window !== 'undefined' && window.electronAPI?.invoke) {
+      killIPC.invoke('terminal:kill', id)
+    }
     const session = sessionsRef.current.get(id)
     if (session) {
       session.terminal.dispose()
@@ -165,6 +193,36 @@ export function TerminalPanel() {
       return next
     })
   }, [activeId, killIPC])
+
+  const handleContextMenu = useCallback((e: React.MouseEvent, sessionId: string) => {
+    e.preventDefault()
+    setContextMenu({ x: e.clientX, y: e.clientY, sessionId })
+  }, [])
+
+  const handleCopy = useCallback(() => {
+    if (!contextMenu) return
+    const session = sessionsRef.current.get(contextMenu.sessionId)
+    if (session) {
+      const text = session.terminal.getSelection()
+      if (text) navigator.clipboard.writeText(text).catch(() => {})
+    }
+    setContextMenu(null)
+  }, [contextMenu])
+
+  const handlePaste = useCallback(() => {
+    if (!contextMenu) return
+    const session = sessionsRef.current.get(contextMenu.sessionId)
+    if (!session) return
+    navigator.clipboard.readText()
+      .then((text) => {
+        session.terminal.paste(text)
+        if (typeof window !== 'undefined' && window.electronAPI?.invoke) {
+          writeIPC.invoke('terminal:write', { id: contextMenu.sessionId, data: text })
+        }
+      })
+      .catch(() => {})
+    setContextMenu(null)
+  }, [contextMenu, writeIPC])
 
   return (
     <div className={styles.root}>
@@ -215,10 +273,23 @@ export function TerminalPanel() {
                 if (el) terminalRefs.current.set(s.id, el)
                 else terminalRefs.current.delete(s.id)
               }}
+              onContextMenu={(e) => handleContextMenu(e, s.id)}
             />
           ))
         )}
       </div>
+
+      {/* Context menu */}
+      {contextMenu && (
+        <div
+          className={styles.contextMenu}
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+        >
+          <button className={styles.contextMenuItem} onClick={handleCopy}>Copy</button>
+          <div className={styles.contextMenuDivider} />
+          <button className={styles.contextMenuItem} onClick={handlePaste}>Paste</button>
+        </div>
+      )}
     </div>
   )
 }

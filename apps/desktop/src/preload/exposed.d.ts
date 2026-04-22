@@ -1,6 +1,6 @@
 import type { IpcEvents, IpcRendererEvents } from '@nexusmind/shared/ipc-channels'
 
-export interface NexusAPI {
+export interface ElectronAPI {
   invoke<K extends keyof IpcEvents>(
     channel: K,
     ...args: Parameters<IpcEvents[K]>
@@ -24,6 +24,6 @@ export interface NexusAPI {
 
 declare global {
   interface Window {
-    nexusAPI: NexusAPI
+    electronAPI: ElectronAPI
   }
 }

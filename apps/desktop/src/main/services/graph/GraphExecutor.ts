@@ -1,4 +1,5 @@
 import crypto from 'crypto'
+import { BrowserWindow } from 'electron'
 import { ServiceRegistry, SERVICE_TOKENS } from '../../ServiceRegistry.js'
 import { ModelProvider, ModelCapability } from '@nexusmind/shared'
 import type { WorkflowDAG, WorkflowNode } from '@nexusmind/shared'
@@ -41,6 +42,13 @@ export interface GraphExecutionContext {
 
 export class GraphExecutor {
 
+  private push(channel: string, payload: unknown): void {
+    const wins = BrowserWindow.getAllWindows()
+    if (wins.length > 0) {
+      wins[0].webContents.send(channel, payload)
+    }
+  }
+
   // -------------------------------------------------------------------------
   // execute — public entry point
   // -------------------------------------------------------------------------
@@ -58,11 +66,16 @@ export class GraphExecutor {
 
     for (const node of sorted) {
       context.currentNodeId = node.id
+      this.push('workflow:stepComplete', { nodeId: node.id, status: 'running' })
       try {
+        // TODO: v0.0.1 stub — log step instead of full LLM execution for non-agent/tool nodes
+        console.log(`[GraphExecutor] Running node ${node.id} (${node.type})`)
         const result = await this.executeNode(node, context)
         context.outputs[node.id] = result
+        this.push('workflow:stepComplete', { nodeId: node.id, status: 'completed', output: String(result ?? '') })
       } catch (err) {
         console.error(`[GraphExecutor] Error executing node "${node.id}" (${node.type}):`, err)
+        this.push('workflow:stepComplete', { nodeId: node.id, status: 'failed', output: String(err) })
         // Only halt for agent/tool nodes; structural/condition nodes continue
         if (node.type === 'agent' || node.type === 'tool') {
           break

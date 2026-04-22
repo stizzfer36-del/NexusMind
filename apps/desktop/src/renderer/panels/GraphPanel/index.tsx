@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import { useIPC } from '../../hooks'
-import type { WorkflowDAG, WorkflowEdge, WorkflowNode, WorkflowNodeType, WorkflowTemplate } from '@nexusmind/shared'
+import type { WorkflowDAG, WorkflowEdge, WorkflowNode, WorkflowNodeType } from '@nexusmind/shared'
 import styles from './GraphPanel.module.css'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -39,7 +39,7 @@ function createBlankDag(): WorkflowDAG {
   }
 }
 
-function cloneFromTemplate(template: WorkflowTemplate): WorkflowDAG {
+function cloneFromTemplate(template: { dag: WorkflowDAG; name: string }): WorkflowDAG {
   const now = Date.now()
   return {
     ...template.dag,
@@ -55,7 +55,7 @@ function cloneFromTemplate(template: WorkflowTemplate): WorkflowDAG {
 export function GraphPanel() {
   // ── State ────────────────────────────────────────────────────────────────
   const [dags, setDags]                   = useState<WorkflowDAG[]>([])
-  const [templates, setTemplates]         = useState<WorkflowTemplate[]>([])
+  const [templates, setTemplates]         = useState<{ id: string; name: string; description?: string; dag: WorkflowDAG }[]>([])
   const [currentDag, setCurrentDag]       = useState<WorkflowDAG | null>(null)
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
   const [saving, setSaving]               = useState(false)
@@ -63,6 +63,7 @@ export function GraphPanel() {
   const [runResult, setRunResult]         = useState<string | null>(null)
   const [connectTarget, setConnectTarget] = useState<string>('')
   const [runInput, setRunInput]           = useState('')
+  const [connectingFrom, setConnectingFrom] = useState<string | null>(null)
 
   // Drag state — stored in a plain ref-like object via useState
   const [dragState, setDragState] = useState<{
@@ -143,7 +144,8 @@ export function GraphPanel() {
       }
     })
     if (selectedNodeId === nodeId) setSelectedNodeId(null)
-  }, [selectedNodeId])
+    if (connectingFrom === nodeId) setConnectingFrom(null)
+  }, [selectedNodeId, connectingFrom])
 
   const addEdge = useCallback((source: string, target: string) => {
     setCurrentDag(prev => {
@@ -238,6 +240,19 @@ export function GraphPanel() {
     setDragState(null)
   }
 
+  function onNodeClick(nodeId: string, e: React.MouseEvent) {
+    e.stopPropagation()
+    if (!connectingFrom) {
+      setConnectingFrom(nodeId)
+    } else if (connectingFrom === nodeId) {
+      setConnectingFrom(null)
+    } else {
+      addEdge(connectingFrom, nodeId)
+      setConnectingFrom(null)
+    }
+    setSelectedNodeId(nodeId)
+  }
+
   // ── Derived ───────────────────────────────────────────────────────────────
 
   const selectedNode = currentDag?.nodes.find(n => n.id === selectedNodeId) ?? null
@@ -263,6 +278,7 @@ export function GraphPanel() {
                 setCurrentDag(dag)
                 setSelectedNodeId(null)
                 setRunResult(null)
+                setConnectingFrom(null)
               }}
               title={tpl.description}
             >
@@ -299,10 +315,17 @@ export function GraphPanel() {
         <div className={styles.sectionTitle}>Saved Workflows</div>
         <button
           className={styles.newBtn}
-          onClick={() => {
-            setCurrentDag(createBlankDag())
+          onClick={async () => {
+            const dag = createBlankDag()
+            setCurrentDag(dag)
             setSelectedNodeId(null)
             setRunResult(null)
+            setConnectingFrom(null)
+            try {
+              await saveIPC.invoke('graph:save', dag)
+              const list = await listIPC.invoke('graph:list')
+              setDags(list)
+            } catch (e) { console.error(e) }
           }}
         >
           + New Blank
@@ -318,6 +341,7 @@ export function GraphPanel() {
                   setCurrentDag(dag)
                   setSelectedNodeId(null)
                   setRunResult(null)
+                  setConnectingFrom(null)
                 }}
                 style={currentDag?.id === dag.id
                   ? { color: 'var(--color-accent)', fontWeight: 600 }
@@ -346,7 +370,7 @@ export function GraphPanel() {
         onMouseMove={onCanvasMouseMove}
         onMouseUp={onCanvasMouseUp}
         onMouseLeave={onCanvasMouseUp}
-        onClick={() => setSelectedNodeId(null)}
+        onClick={() => { setSelectedNodeId(null); setConnectingFrom(null) }}
       >
         {!currentDag ? (
           <div className={styles.emptyState}>
@@ -421,17 +445,18 @@ export function GraphPanel() {
             {currentDag.nodes.map(node => {
               const pos = positions[node.id] ?? node.position
               const isSelected = selectedNodeId === node.id
+              const isConnectingSource = connectingFrom === node.id
               return (
                 <div
                   key={node.id}
-                  className={`${styles.node} ${isSelected ? styles.nodeSelected : ''}`}
+                  className={`${styles.node} ${isSelected ? styles.nodeSelected : ''} ${isConnectingSource ? styles.nodeConnecting : ''}`}
                   style={{
                     left: pos.x,
                     top: pos.y,
                     borderLeft: `3px solid ${NODE_BORDER_COLORS[node.type]}`,
                   }}
                   onMouseDown={e => onNodeMouseDown(node.id, e)}
-                  onClick={e => { e.stopPropagation(); setSelectedNodeId(node.id) }}
+                  onClick={e => onNodeClick(node.id, e)}
                 >
                   <span className={styles.nodeLabel}>{node.label}</span>
                 </div>
@@ -476,28 +501,61 @@ export function GraphPanel() {
 
             {/* Type-specific config */}
             {selectedNode.type === 'agent' && (
-              <div>
-                <div className={styles.fieldLabel}>Role</div>
-                <select
-                  className={styles.select}
-                  value={String(selectedNode.config?.role ?? 'coordinator')}
-                  onChange={e => updateSelectedNode({ config: { ...selectedNode.config, role: e.target.value } })}
-                >
-                  {AGENT_ROLES.map(r => <option key={r} value={r}>{r}</option>)}
-                </select>
-              </div>
+              <>
+                <div>
+                  <div className={styles.fieldLabel}>Role</div>
+                  <select
+                    className={styles.select}
+                    value={String(selectedNode.config?.role ?? 'coordinator')}
+                    onChange={e => updateSelectedNode({ config: { ...selectedNode.config, role: e.target.value } })}
+                  >
+                    {AGENT_ROLES.map(r => <option key={r} value={r}>{r}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <div className={styles.fieldLabel}>Model</div>
+                  <input
+                    className={styles.input}
+                    value={String(selectedNode.config?.model ?? '')}
+                    placeholder="e.g. claude-sonnet-4-6"
+                    onChange={e => updateSelectedNode({ config: { ...selectedNode.config, model: e.target.value } })}
+                  />
+                </div>
+                <div>
+                  <div className={styles.fieldLabel}>System Prompt</div>
+                  <textarea
+                    className={styles.textarea}
+                    value={String(selectedNode.config?.systemPrompt ?? '')}
+                    placeholder="Enter system prompt for this agent..."
+                    rows={4}
+                    onChange={e => updateSelectedNode({ config: { ...selectedNode.config, systemPrompt: e.target.value } })}
+                  />
+                </div>
+              </>
             )}
 
             {selectedNode.type === 'tool' && (
-              <div>
-                <div className={styles.fieldLabel}>Tool Name</div>
-                <input
-                  className={styles.input}
-                  value={String(selectedNode.config?.toolName ?? '')}
-                  placeholder="e.g. read_file"
-                  onChange={e => updateSelectedNode({ config: { ...selectedNode.config, toolName: e.target.value } })}
-                />
-              </div>
+              <>
+                <div>
+                  <div className={styles.fieldLabel}>Tool Name</div>
+                  <input
+                    className={styles.input}
+                    value={String(selectedNode.config?.toolName ?? '')}
+                    placeholder="e.g. read_file"
+                    onChange={e => updateSelectedNode({ config: { ...selectedNode.config, toolName: e.target.value } })}
+                  />
+                </div>
+                <div>
+                  <div className={styles.fieldLabel}>Arguments (JSON)</div>
+                  <textarea
+                    className={styles.textarea}
+                    value={String(selectedNode.config?.args ?? '')}
+                    placeholder='{"path": "/tmp/file.txt"}'
+                    rows={4}
+                    onChange={e => updateSelectedNode({ config: { ...selectedNode.config, args: e.target.value } })}
+                  />
+                </div>
+              </>
             )}
 
             {selectedNode.type === 'condition' && (
@@ -608,7 +666,7 @@ export function GraphPanel() {
               disabled={running}
               onClick={runDag}
             >
-              {running ? 'Running...' : 'Run'}
+              {running ? 'Running...' : 'Run All'}
             </button>
 
             {runResult && (

@@ -3,7 +3,7 @@ import type { IpcEvents, IpcRendererEvents } from '@nexusmind/shared/ipc-channel
 
 declare global {
   interface Window {
-    nexusAPI: {
+    electronAPI: {
       invoke<K extends keyof IpcEvents>(
         channel: K,
         ...args: Parameters<IpcEvents[K]>

@@ -154,3 +154,39 @@
 .emptyBtn:hover {
   background: var(--color-accent-muted, rgba(124,106,247,0.25));
 }
+
+/* ─── Context Menu ─── */
+
+.contextMenu {
+  position: fixed;
+  z-index: 1000;
+  background: var(--color-surface, #141414);
+  border: 1px solid var(--color-border, rgba(255,255,255,0.12));
+  border-radius: var(--radius-md, 6px);
+  padding: 4px 0;
+  min-width: 120px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+}
+
+.contextMenuItem {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 6px 12px;
+  font-size: var(--font-size-sm, 12px);
+  color: var(--color-text, rgba(255,255,255,0.85));
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: background var(--transition-fast, 80ms);
+}
+
+.contextMenuItem:hover {
+  background: rgba(255,255,255,0.06);
+}
+
+.contextMenuDivider {
+  height: 1px;
+  background: var(--color-border, rgba(255,255,255,0.08));
+  margin: 4px 0;
+}

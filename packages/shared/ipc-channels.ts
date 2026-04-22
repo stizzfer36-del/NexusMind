@@ -76,6 +76,7 @@ export interface IpcEvents {
 
   // kanban / tasks
   'kanban:listTasks': () => Task[]
+  'kanban:getTasks': () => Task[]
   'kanban:createTask': (task: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>) => Task
   'kanban:updateTask': (task: Task) => Task
   'kanban:deleteTask': (taskId: string) => void
@@ -169,6 +170,7 @@ export interface IpcRendererEvents {
   // swarm
   'swarm:update': (payload: SwarmState & { id?: string; activeNode?: string }) => void
   'swarm:message': (message: AgentMessage) => void
+  'swarm:sessionCreated': (session: SwarmSession) => void
 
   // kanban / tasks
   'kanban:taskUpdated': (task: Task) => void
@@ -193,12 +195,15 @@ export interface IpcRendererEvents {
 
   // graph
   'graph:updated': (graph: WorkflowDAG) => void
+  'workflow:stepComplete': (payload: { nodeId: string; status: string; output?: string }) => void
 
   // replay
   'replay:event': (event: ReplayEvent) => void
 
   // guard
   'guard:finding': (finding: GuardFinding) => void
+  'guard:progress': (payload: { scanner: string; status: string; findings: GuardFinding[] }) => void
+  'guard:complete': (payload: { runId: string; findings: GuardFinding[] }) => void
 
   // bench
   'bench:progress': (payload: { reportId: string; progress: number }) => void

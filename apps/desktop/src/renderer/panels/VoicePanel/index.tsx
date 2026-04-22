@@ -48,6 +48,10 @@ export function VoicePanel() {
   const analyserRef = useRef<AnalyserNode | null>(null)
   const animFrameRef = useRef<number>(0)
   const transcriptEndRef = useRef<HTMLDivElement | null>(null)
+  const recognitionRef = useRef<any>(null)
+
+  const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+  const hasSpeechApi = !!SpeechRecognition
 
   // Load config and start session on mount
   useEffect(() => {
@@ -104,7 +108,18 @@ export function VoicePanel() {
     analyserRef.current = null
   }, [])
 
-  const startListening = useCallback(async () => {
+  const appendSegment = useCallback((text: string) => {
+    const now = Date.now()
+    setSegments(prev => [...prev, {
+      id: crypto.randomUUID(),
+      direction: 'user',
+      text,
+      startedAt: now,
+      finishedAt: now,
+    }])
+  }, [])
+
+  const startListeningFallback = useCallback(async () => {
     if (isListeningRef.current || !sessionId) return
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
@@ -112,16 +127,16 @@ export function VoicePanel() {
       const recorder = new MediaRecorder(stream)
       chunksRef.current = []
       recorder.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data) }
-      recorder.start(500) // 500ms chunks
+      recorder.start(500)
       recorderRef.current = recorder
       isListeningRef.current = true
       setStatus('listening')
     } catch (e) {
-      setError(`Microphone access denied: ${e}`)
+      setError(`Microphone access denied: ${e}. Please grant microphone permission in your OS settings.`)
     }
   }, [sessionId, startWaveform])
 
-  const stopListening = useCallback(async () => {
+  const stopListeningFallback = useCallback(async () => {
     if (!isListeningRef.current || !recorderRef.current || !sessionId) return
     isListeningRef.current = false
     stopWaveform()
@@ -131,7 +146,6 @@ export function VoicePanel() {
     recorderRef.current = null
     setStatus('processing')
 
-    // Collect all chunks and transcribe
     await new Promise<void>(resolve => { recorder.onstop = () => resolve() })
     const blob = new Blob(chunksRef.current, { type: 'audio/webm' })
     chunksRef.current = []
@@ -142,25 +156,89 @@ export function VoicePanel() {
       const { text } = await transcribeIPC.invoke('voice:transcribeChunk', sessionId, arrayBuf)
       setPartial('')
       if (text) {
-        const now = Date.now()
-        setSegments(prev => [...prev, {
-          id: crypto.randomUUID(),
-          direction: 'user',
-          text,
-          startedAt: now,
-          finishedAt: now,
-        }])
-        // Speak the text back via TTS (echoed via VoiceService)
-        setStatus('processing')
-        await speakIPC.invoke('voice:speakText', text).catch(() => {})
-      } else {
-        setStatus('idle')
+        appendSegment(text)
       }
+      setStatus('idle')
     } catch (e) {
       setError(String(e))
       setStatus('error')
     }
-  }, [sessionId, stopWaveform, transcribeIPC, speakIPC])
+  }, [sessionId, stopWaveform, transcribeIPC, appendSegment])
+
+  const startListeningWebSpeech = useCallback(() => {
+    if (isListeningRef.current) return
+    const recognition = new SpeechRecognition()
+    recognition.lang = 'en-US'
+    recognition.interimResults = true
+    recognition.maxAlternatives = 1
+    recognition.continuous = false
+
+    recognition.onstart = () => {
+      isListeningRef.current = true
+      setStatus('listening')
+      setError(null)
+    }
+
+    recognition.onresult = (event: any) => {
+      let interim = ''
+      let final = ''
+      for (let i = event.resultIndex; i < event.results.length; ++i) {
+        if (event.results[i].isFinal) {
+          final += event.results[i][0].transcript
+        } else {
+          interim += event.results[i][0].transcript
+        }
+      }
+      if (final) {
+        appendSegment(final)
+      }
+      setPartial(interim)
+    }
+
+    recognition.onerror = (event: any) => {
+      setError(`Speech recognition error: ${event.error}. Ensure microphone access is granted.`)
+      setStatus('error')
+      isListeningRef.current = false
+    }
+
+    recognition.onend = () => {
+      isListeningRef.current = false
+      setPartial('')
+      setStatus('idle')
+    }
+
+    recognitionRef.current = recognition
+    try {
+      recognition.start()
+    } catch (e) {
+      setError('Could not start speech recognition.')
+    }
+  }, [SpeechRecognition, appendSegment])
+
+  const stopListeningWebSpeech = useCallback(() => {
+    try {
+      recognitionRef.current?.stop()
+    } catch {}
+    isListeningRef.current = false
+    setPartial('')
+    setStatus('idle')
+  }, [])
+
+  const startListening = useCallback(() => {
+    if (hasSpeechApi) {
+      startListeningWebSpeech()
+    } else {
+      startListeningFallback()
+    }
+  }, [hasSpeechApi, startListeningWebSpeech, startListeningFallback])
+
+  const stopListening = useCallback(() => {
+    if (hasSpeechApi) {
+      stopListeningWebSpeech()
+    } else {
+      stopListeningFallback()
+    }
+  }, [hasSpeechApi, stopListeningWebSpeech, stopListeningFallback])
 
   // Push-to-talk keyboard handler
   useEffect(() => {
@@ -186,18 +264,10 @@ export function VoicePanel() {
 
   const handleTextSend = useCallback(async () => {
     const text = textInput.trim()
-    if (!text || !sessionId) return
+    if (!text) return
     setTextInput('')
-    const now = Date.now()
-    setSegments(prev => [...prev, { id: crypto.randomUUID(), direction: 'user', text, startedAt: now, finishedAt: now }])
-    setStatus('processing')
-    try {
-      await speakIPC.invoke('voice:speakText', text)
-    } catch (e) {
-      setError(String(e))
-      setStatus('error')
-    }
-  }, [textInput, sessionId, speakIPC])
+    appendSegment(text)
+  }, [textInput, appendSegment])
 
   const toggleMic = useCallback(() => {
     if (status === 'listening') stopListening()
@@ -220,7 +290,7 @@ export function VoicePanel() {
 
         <span className={`${styles.statusPill} ${STATUS_CLASS[status]}`}>{status}</span>
 
-        {status === 'listening' && (
+        {status === 'listening' && !hasSpeechApi && (
           <div className={styles.waveform}>
             {micLevel.map((h, i) => (
               <div key={i} className={styles.waveBar} style={{ height: `${h}px` }} />
@@ -269,7 +339,7 @@ export function VoicePanel() {
         <button
           className={styles.sendBtn}
           onClick={handleTextSend}
-          disabled={!textInput.trim() || status !== 'idle'}
+          disabled={!textInput.trim()}
         >
           Send
         </button>

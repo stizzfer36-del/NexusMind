@@ -33,6 +33,7 @@ function GraphFlow({ activeNode }: { activeNode: string | null }) {
 
 const STATUS_COLORS: Record<string, string> = {
   idle: 'var(--color-text-muted)',
+  initializing: 'var(--color-accent)',
   orchestrating: 'var(--color-accent)',
   executing: 'var(--color-yellow)',
   converging: 'var(--color-blue, #3b82f6)',
@@ -42,6 +43,7 @@ const STATUS_COLORS: Record<string, string> = {
 
 const STATUS_LABELS: Record<string, string> = {
   idle: 'Idle',
+  initializing: 'Initializing',
   orchestrating: 'Orchestrating',
   executing: 'Executing',
   converging: 'Converging',
@@ -56,11 +58,20 @@ const ROLE_LABELS: Record<string, string> = {
   reviewer: 'rev',
   tester: 'test',
   docwriter: 'docs',
-  architect: 'arch',
 }
 
 function fmt(ts: number): string {
   return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+}
+
+function getAgentStatus(role: string, sessionStatus: SwarmStatus, activeNode: string | null): string {
+  if (sessionStatus === SwarmStatus.COMPLETED) return 'done'
+  if (sessionStatus === SwarmStatus.IDLE) return 'idle'
+  if (sessionStatus === SwarmStatus.FAILED) return 'idle'
+  if (activeNode === role) return 'running'
+  if (sessionStatus === SwarmStatus.CONVERGING && role === 'reviewer') return 'thinking'
+  if (sessionStatus === SwarmStatus.EXECUTING && role === 'builder') return 'running'
+  return 'idle'
 }
 
 export function SwarmPanel() {
@@ -110,6 +121,15 @@ export function SwarmPanel() {
       }
       setActiveNode(derived[status] ?? null)
     }
+  }, []))
+
+  // Listen for newly created sessions from main
+  useIPCEvent('swarm:sessionCreated', useCallback((session: SwarmSession) => {
+    setSessions(prev => {
+      if (prev.some(s => s.id === session.id)) return prev
+      return [...prev, session]
+    })
+    setSelectedId(session.id)
   }, []))
 
   const handleLaunch = useCallback(async () => {
@@ -187,8 +207,8 @@ export function SwarmPanel() {
                 <input
                   className={styles.slider}
                   type="range"
-                  min={2}
-                  max={8}
+                  min={1}
+                  max={16}
                   value={agentCount}
                   onChange={e => setAgentCount(Number(e.target.value))}
                 />
@@ -225,7 +245,11 @@ export function SwarmPanel() {
 
         <div className={styles.sessionList}>
           {sessions.length === 0 ? (
-            <div className={styles.emptyList}>No sessions yet</div>
+            <div className={styles.emptyList}>
+              <div>No swarm sessions yet</div>
+              <div className={styles.emptySub}>Launch one to coordinate multiple agents on a goal</div>
+              <button className={styles.emptyBtn} onClick={() => setShowModal(true)}>Launch Swarm</button>
+            </div>
           ) : (
             sessions.map(s => (
               <button
@@ -363,12 +387,16 @@ export function SwarmPanel() {
                   {selectedSession.state.agentIds.map((agentId, i) => {
                     const roles = Object.keys(ROLE_LABELS)
                     const role = roles[i % roles.length]
+                    const status = getAgentStatus(role, selectedSession.state.status, activeNode)
                     return (
                       <div key={agentId} className={styles.agentCard}>
                         <div className={styles.agentIcon}>{ROLE_LABELS[role] ?? role}</div>
                         <div className={styles.agentInfo}>
                           <div className={styles.agentRole}>{role}</div>
                           <div className={styles.agentId}>{agentId.slice(0, 8)}</div>
+                          <span className={`${styles.agentStatus} ${styles[`agentStatus${status.charAt(0).toUpperCase() + status.slice(1)}`]}`}>
+                            {status}
+                          </span>
                         </div>
                       </div>
                     )
