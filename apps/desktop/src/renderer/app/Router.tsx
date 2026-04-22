@@ -3,7 +3,7 @@ import React, { createContext, useCallback, useContext, useEffect, useState } fr
 export type Route = 'terminal' | 'kanban' | 'swarm' | 'memory' | 'replay' | 'settings' | 'bench' | 'graph' | 'guard' | 'voice' | 'agent'
 
 const VALID_ROUTES: Route[] = ['terminal', 'kanban', 'swarm', 'memory', 'replay', 'settings', 'bench', 'graph', 'guard', 'voice', 'agent']
-const DEFAULT_ROUTE: Route = 'bench'
+const DEFAULT_ROUTE: Route = 'terminal'
 
 function parseHash(): Route {
   const hash = window.location.hash.replace(/^#\/?/, '')

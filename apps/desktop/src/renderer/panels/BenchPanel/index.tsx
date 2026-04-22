@@ -34,11 +34,6 @@ function ScoreBar({ score }: { score: number }) {
 }
 
 export function BenchPanel() {
-  // TEMP: force render crash for verification of app:rendererCrash
-  if (typeof window !== 'undefined') {
-    throw new Error('Intentional BenchPanel crash for crash.log verification')
-  }
-
   const bench = useBench()
   const [expandedRunId, setExpandedRunId] = useState<string | null>(null)
   const [modelInput, setModelInput] = useState('')

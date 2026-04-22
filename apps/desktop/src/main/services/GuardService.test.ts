@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import Database from 'better-sqlite3'
 import fs from 'node:fs'
 import path from 'node:path'
 import os from 'node:os'
@@ -33,21 +32,186 @@ import { GuardService } from './GuardService.js'
 import { ServiceRegistry, SERVICE_TOKENS } from '../ServiceRegistry.js'
 import { WindowManager } from '../windows/WindowManager.js'
 
+// In-memory mock Database for tests (avoids better-sqlite3 native bindings)
+class MockDb {
+  private tables: Map<string, Array<Record<string, any>>> = new Map()
+
+  exec(sql: string) {
+    const match = sql.match(/CREATE TABLE IF NOT EXISTS (\w+)\s*\((.*)\)/is)
+    if (match) {
+      const tableName = match[1]
+      if (!this.tables.has(tableName)) {
+        this.tables.set(tableName, [])
+      }
+    }
+  }
+
+  prepare(sql: string) {
+    const normalized = sql.trim().replace(/\s+/g, ' ')
+    const self = this
+
+    return {
+      run: (...params: any[]) => {
+        const insertMatch = normalized.match(/INSERT INTO (\w+) \(([^)]+)\) VALUES \(([^)]+)\)/i)
+        if (insertMatch) {
+          const tableName = insertMatch[1]
+          const cols = insertMatch[2].split(',').map((c) => c.trim())
+          const valuesStr = insertMatch[3]
+          // Split values by comma, but be careful with strings
+          const values: string[] = []
+          let current = ''
+          let inString = false
+          for (let i = 0; i < valuesStr.length; i++) {
+            const ch = valuesStr[i]
+            if (ch === "'") {
+              inString = !inString
+              current += ch
+            } else if (ch === ',' && !inString) {
+              values.push(current.trim())
+              current = ''
+            } else {
+              current += ch
+            }
+          }
+          if (current.trim()) values.push(current.trim())
+
+          const row: Record<string, any> = {}
+          let paramIdx = 0
+          values.forEach((val, i) => {
+            const col = cols[i]
+            if (val === '?') {
+              row[col] = params[paramIdx++] ?? null
+            } else if (val.startsWith("'") && val.endsWith("'")) {
+              row[col] = val.slice(1, -1)
+            } else {
+              const num = Number(val)
+              row[col] = Number.isNaN(num) ? val : num
+            }
+          })
+          if (!self.tables.has(tableName)) self.tables.set(tableName, [])
+          self.tables.get(tableName)!.push(row)
+        }
+        const deleteMatch = normalized.match(/DELETE FROM (\w+)/i)
+        if (deleteMatch) {
+          const tableName = deleteMatch[1]
+          self.tables.set(tableName, [])
+        }
+        const updateMatch = normalized.match(/UPDATE (\w+) SET (.+) WHERE (.+)/i)
+        if (updateMatch) {
+          const tableName = updateMatch[1]
+          const setPart = updateMatch[2]
+          const wherePart = updateMatch[3]
+          const rows = self.tables.get(tableName) ?? []
+          // Parse WHERE id = ?
+          const whereIdMatch = wherePart.match(/id\s*=\s*\?/)
+          if (whereIdMatch) {
+            const targetId = params[params.length - 1]
+            const row = rows.find((r) => r.id === targetId)
+            if (row) {
+              // Parse simple SET col = ?
+              const setMatches = setPart.matchAll(/(\w+)\s*=\s*\?/g)
+              let paramIdx = 0
+              for (const m of setMatches) {
+                row[m[1]] = params[paramIdx++]
+              }
+            }
+          }
+        }
+      },
+      get: (...params: any[]) => {
+        // SELECT * FROM guard_runs WHERE status = 'COMPLETED' ORDER BY started_at DESC LIMIT 1
+        const selectMatch = normalized.match(/SELECT \* FROM (\w+)(?: WHERE (.+?))?(?: ORDER BY (.+?))?(?: LIMIT (\d+))?/i)
+        if (selectMatch) {
+          const tableName = selectMatch[1]
+          let rows = self.tables.get(tableName) ?? []
+          const wherePart = selectMatch[2]
+          if (wherePart) {
+            // status = 'COMPLETED'
+            const eqMatch = wherePart.match(/(\w+)\s*=\s*['"]?([^'"?]+)['"]?/)
+            if (eqMatch) {
+              rows = rows.filter((r) => r[eqMatch[1]] === eqMatch[2])
+            } else {
+              // key = ?
+              const qMatch = wherePart.match(/(\w+)\s*=\s*\?/)
+              if (qMatch) {
+                rows = rows.filter((r) => r[qMatch[1]] === params[0])
+              }
+            }
+          }
+          const orderPart = selectMatch[3]
+          if (orderPart) {
+            const desc = orderPart.includes('DESC')
+            const col = orderPart.replace(/DESC|ASC/gi, '').trim()
+            rows = [...rows].sort((a, b) => {
+              if (desc) return (b[col] ?? 0) - (a[col] ?? 0)
+              return (a[col] ?? 0) - (b[col] ?? 0)
+            })
+          }
+          const limit = selectMatch[4]
+          if (limit) {
+            rows = rows.slice(0, parseInt(limit))
+          }
+          return rows[0] ?? null
+        }
+        return null
+      },
+      all: (...params: any[]) => {
+        const selectMatch = normalized.match(/SELECT (.+) FROM (\w+)(?: WHERE (.+?))?(?: ORDER BY (.+?))?(?: LIMIT (\d+))?/i)
+        if (selectMatch) {
+          const tableName = selectMatch[2]
+          let rows = self.tables.get(tableName) ?? []
+          const wherePart = selectMatch[3]
+          if (wherePart) {
+            const eqMatch = wherePart.match(/(\w+)\s*=\s*['"]?([^'"?]+)['"]?/)
+            if (eqMatch) {
+              rows = rows.filter((r) => r[eqMatch[1]] === eqMatch[2])
+            } else {
+              const qMatch = wherePart.match(/(\w+)\s*=\s*\?/)
+              if (qMatch) {
+                rows = rows.filter((r) => r[qMatch[1]] === params[0])
+              }
+            }
+          }
+          const orderPart = selectMatch[4]
+          if (orderPart) {
+            const desc = orderPart.includes('DESC')
+            const col = orderPart.replace(/DESC|ASC/gi, '').trim()
+            rows = [...rows].sort((a, b) => {
+              if (desc) return (b[col] ?? 0) - (a[col] ?? 0)
+              return (a[col] ?? 0) - (b[col] ?? 0)
+            })
+          }
+          const limit = selectMatch[4]
+          if (limit) {
+            rows = rows.slice(0, parseInt(limit))
+          }
+          return [...rows]
+        }
+        return []
+      },
+    }
+  }
+
+  close() {}
+}
+
 describe('GuardService approval flow', () => {
   let tmpDir: string
   let dbPath: string
-  let db: Database.Database
+  let db: MockDb
   let service: GuardService
   let sendMock: ReturnType<typeof vi.fn>
 
   beforeEach(() => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'guard-approval-test-'))
     dbPath = path.join(tmpDir, 'test.db')
-    db = new Database(dbPath)
+    db = new MockDb()
 
     // Bootstrap minimal schema for guard tables
     db.exec(`
       CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT, updated_at INTEGER);
+    `)
+    db.exec(`
       CREATE TABLE IF NOT EXISTS guard_runs (
         id TEXT PRIMARY KEY,
         started_at INTEGER NOT NULL,
@@ -59,6 +223,8 @@ describe('GuardService approval flow', () => {
         high_count INTEGER NOT NULL DEFAULT 0,
         critical_count INTEGER NOT NULL DEFAULT 0
       );
+    `)
+    db.exec(`
       CREATE TABLE IF NOT EXISTS guard_findings (
         id TEXT PRIMARY KEY,
         run_id TEXT NOT NULL,
