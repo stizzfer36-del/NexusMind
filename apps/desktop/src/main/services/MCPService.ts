@@ -562,6 +562,145 @@ export class MCPService {
     }
   }
 
+  exposeServiceTools(): Array<{ name: string; description: string; inputSchema: Record<string, unknown> }> {
+    const registry = ServiceRegistry.getInstance()
+    const tools: Array<{ name: string; description: string; inputSchema: Record<string, unknown> }> = []
+
+    try {
+      const memory = registry.resolve<MemoryService>(SERVICE_TOKENS.MemoryService)
+      tools.push(
+        {
+          name: 'nexusmind_memory_search',
+          description: 'Search persistent memory across all sessions',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              query: { type: 'string', description: 'Search query' },
+              limit: { type: 'number', description: 'Max results to return' },
+              type: { type: 'string', description: 'Memory type filter (episodic|semantic|procedural|working)' }
+            },
+            required: ['query']
+          }
+        },
+        {
+          name: 'nexusmind_memory_store',
+          description: 'Store a new memory entry',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              content: { type: 'string', description: 'Memory content' },
+              type: { type: 'string', description: 'Memory type' },
+              source: { type: 'string', description: 'Source identifier' }
+            },
+            required: ['content', 'type']
+          }
+        }
+      )
+    } catch {}
+
+    try {
+      const guard = registry.resolve<any>(SERVICE_TOKENS.GuardService)
+      tools.push(
+        {
+          name: 'nexusmind_guard_scan',
+          description: 'Run security scan (semgrep, npm audit, trufflehog)',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              path: { type: 'string', description: 'Path to scan' }
+            }
+          }
+        },
+        {
+          name: 'nexusmind_guard_get_findings',
+          description: 'Get security findings from last scan',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              runId: { type: 'string', description: 'Scan run ID' }
+            }
+          }
+        }
+      )
+    } catch {}
+
+    try {
+      const kanban = registry.resolve<any>(SERVICE_TOKENS.KanbanService)
+      tools.push(
+        {
+          name: 'nexusmind_kanban_create_task',
+          description: 'Create a new kanban task',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              title: { type: 'string', description: 'Task title' },
+              description: { type: 'string', description: 'Task description' },
+              column: { type: 'string', description: 'Column (backlog|in_progress|in_review|done)' },
+              priority: { type: 'string', description: 'Priority (critical|high|medium|low)' }
+            },
+            required: ['title']
+          }
+        },
+        {
+          name: 'nexusmind_kanban_list_tasks',
+          description: 'List kanban tasks',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              column: { type: 'string', description: 'Filter by column' }
+            }
+          }
+        }
+      )
+    } catch {}
+
+    try {
+      const budget = registry.resolve<any>(SERVICE_TOKENS.BudgetService)
+      tools.push(
+        {
+          name: 'nexusmind_budget_check',
+          description: 'Check current spend against limits',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              sessionId: { type: 'string', description: 'Session ID to check' }
+            }
+          }
+        },
+        {
+          name: 'nexusmind_budget_get_config',
+          description: 'Get budget configuration (daily/monthly/session limits)',
+          inputSchema: { type: 'object', properties: {} }
+        }
+      )
+    } catch {}
+
+    try {
+      const codebaseIndex = registry.resolve<any>(SERVICE_TOKENS.CodebaseIndex)
+      tools.push(
+        {
+          name: 'nexusmind_codebase_search',
+          description: 'Semantic search over codebase',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              query: { type: 'string', description: 'Search query' },
+              limit: { type: 'number', description: 'Max results' }
+            },
+            required: ['query']
+          }
+        },
+        {
+          name: 'nexusmind_codebase_index',
+          description: 'Index/re-index the codebase',
+          inputSchema: { type: 'object', properties: {} }
+        }
+      )
+    } catch {}
+
+    return tools
+  }
+
   getHandlers(): Record<string, (event: any, ...args: any[]) => any> {
     return {
       'mcp:addServer': (_event: any, config: MCPServerConfig) => this.registerServer(config),
@@ -577,6 +716,7 @@ export class MCPService {
         payload: { name: string; args: Record<string, unknown> }
       ) => this.executeTool(payload.name, payload.args),
       'mcp:getServerStatus': (_event: any, serverId: MCPServerId) => this.getServerStatus(serverId),
+      'mcp:exposeServiceTools': () => this.exposeServiceTools(),
     }
   }
 }

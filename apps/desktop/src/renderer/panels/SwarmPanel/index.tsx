@@ -2,34 +2,9 @@ import React, { useCallback, useMemo, useState } from 'react'
 import { useIPC } from '../../hooks'
 import { useSwarm } from '../../features/swarm/useSwarm'
 import { SwarmStatus } from '@nexusmind/shared'
+import { SwarmGraph } from './SwarmGraph'
+import type { SwarmNodeState } from '../../stores/swarm.store'
 import styles from './SwarmPanel.module.css'
-
-const PIPELINE_NODES = ['coordinator', 'builder', 'reviewer', 'tester', 'docwriter', 'END']
-
-function GraphFlow({ activeNode }: { activeNode: string | null }) {
-  return (
-    <div className={styles.graphFlow}>
-      <div className={styles.graphFlowRow}>
-        {PIPELINE_NODES.map((node, i) => (
-          <React.Fragment key={node}>
-            <span
-              className={`${styles.graphNode} ${activeNode === node ? styles.graphNodeActive : ''}`}
-            >
-              {node}
-            </span>
-            {i < PIPELINE_NODES.length - 1 && (
-              <span className={styles.graphEdge}>→</span>
-            )}
-          </React.Fragment>
-        ))}
-      </div>
-      <div className={styles.graphBackEdges}>
-        <span className={styles.graphBackEdge}>reviewer ↩ builder (rejected)</span>
-        <span className={styles.graphBackEdge}>tester ↩ builder (failed)</span>
-      </div>
-    </div>
-  )
-}
 
 const STATUS_COLORS: Record<string, string> = {
   idle: 'var(--color-text-muted)',
@@ -51,27 +26,83 @@ const STATUS_LABELS: Record<string, string> = {
   failed: 'Failed',
 }
 
-const ROLE_LABELS: Record<string, string> = {
-  coordinator: 'coord',
-  scout: 'scout',
-  builder: 'build',
-  reviewer: 'rev',
-  tester: 'test',
-  docwriter: 'docs',
+const ROLE_META: Record<string, { label: string; icon: string; color: string }> = {
+  scout:       { label: 'Scout',       icon: '🔍', color: 'var(--swarm-scout, #60a5fa)' },
+  architect:   { label: 'Architect',   icon: '📐', color: 'var(--swarm-architect, #a78bfa)' },
+  coordinator: { label: 'Coordinator', icon: '🎯', color: 'var(--swarm-coordinator, #f472b6)' },
+  builder:     { label: 'Builder',     icon: '🔨', color: 'var(--swarm-builder, #fbbf24)' },
+  reviewer:    { label: 'Reviewer',    icon: '👁', color: 'var(--swarm-reviewer, #34d399)' },
+  tester:      { label: 'Tester',      icon: '🧪', color: 'var(--swarm-tester, #f87171)' },
+  docwriter:   { label: 'DocWriter',   icon: '📝', color: 'var(--swarm-docwriter, #38bdf8)' },
 }
 
 function fmt(ts: number): string {
   return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
 
-function getAgentStatus(role: string, sessionStatus: SwarmStatus, activeNode: string | null): string {
-  if (sessionStatus === SwarmStatus.COMPLETED) return 'done'
-  if (sessionStatus === SwarmStatus.IDLE) return 'idle'
-  if (sessionStatus === SwarmStatus.FAILED) return 'idle'
-  if (activeNode === role) return 'running'
-  if (sessionStatus === SwarmStatus.CONVERGING && role === 'reviewer') return 'thinking'
-  if (sessionStatus === SwarmStatus.EXECUTING && role === 'builder') return 'running'
-  return 'idle'
+function NodeDetailPanel({ nodeState, onClose }: { nodeState: SwarmNodeState | null; onClose: () => void }) {
+  if (!nodeState) return null
+  const meta = ROLE_META[nodeState.role] ?? { label: nodeState.role, icon: '⚙', color: 'var(--color-accent)' }
+
+  return (
+    <div className={styles.nodeDetail}>
+      <div className={styles.nodeDetailHeader}>
+        <div className={styles.nodeDetailTitleRow}>
+          <span className={styles.nodeDetailIcon}>{meta.icon}</span>
+          <span className={styles.nodeDetailTitle}>{meta.label}</span>
+          <span
+            className={styles.statusBadge}
+            style={{
+              color: STATUS_COLORS[nodeState.status] ?? 'var(--color-text-muted)',
+              borderColor: STATUS_COLORS[nodeState.status] ?? 'var(--color-border)',
+            }}
+          >
+            {nodeState.status}
+          </span>
+        </div>
+        <button className={styles.nodeDetailClose} onClick={onClose} aria-label="Close detail panel">×</button>
+      </div>
+
+      {nodeState.agentId && (
+        <div className={styles.nodeDetailSection}>
+          <div className={styles.sectionTitle}>Agent ID</div>
+          <div className={styles.monoText}>{nodeState.agentId}</div>
+        </div>
+      )}
+
+      {nodeState.startedAt && (
+        <div className={styles.nodeDetailSection}>
+          <div className={styles.sectionTitle}>Started</div>
+          <div>{fmt(nodeState.startedAt)}</div>
+        </div>
+      )}
+
+      {nodeState.completedAt && (
+        <div className={styles.nodeDetailSection}>
+          <div className={styles.sectionTitle}>Completed</div>
+          <div>{fmt(nodeState.completedAt)}</div>
+        </div>
+      )}
+
+      {nodeState.fileLocks.length > 0 && (
+        <div className={styles.nodeDetailSection}>
+          <div className={styles.sectionTitle}>File Locks</div>
+          <div className={styles.fileLockList}>
+            {nodeState.fileLocks.map((f, i) => (
+              <div key={i} className={styles.fileLockItem}>{f}</div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {nodeState.output && (
+        <div className={styles.nodeDetailSection}>
+          <div className={styles.sectionTitle}>Output</div>
+          <div className={styles.outputBlock}>{nodeState.output}</div>
+        </div>
+      )}
+    </div>
+  )
 }
 
 export function SwarmPanel() {
@@ -80,13 +111,18 @@ export function SwarmPanel() {
     agents,
     selectedSessionId,
     setSelectedSessionId,
+    activeNode,
+    nodeStates,
+    edgeMessages,
+    selectedNodeId,
+    setSelectedNodeId,
   } = useSwarm()
 
   const [showModal, setShowModal] = useState(false)
   const [goalText, setGoalText] = useState('')
   const [agentCount, setAgentCount] = useState(4)
 
-  const startIPC = useIPC<'swarm:start'>
+  const startIPC = useIPC<'swarm:start'>()
   const stopIPC = useIPC<'swarm:stop'>()
   const createIPC = useIPC<'swarm:create'>()
 
@@ -100,16 +136,10 @@ export function SwarmPanel() {
     [agents, selectedSession],
   )
 
-  const activeNode = useMemo(() => {
-    if (!selectedSession) return null
-    const derived: Record<string, string> = {
-      orchestrating: 'coordinator',
-      executing: 'builder',
-      converging: 'reviewer',
-      completed: 'END',
-    }
-    return derived[selectedSession.state.status] ?? null
-  }, [selectedSession])
+  const selectedNodeState = useMemo(() => {
+    if (!selectedNodeId) return null
+    return nodeStates[selectedNodeId] ?? null
+  }, [selectedNodeId, nodeStates])
 
   const handleLaunch = useCallback(async () => {
     if (!goalText.trim()) return
@@ -144,13 +174,16 @@ export function SwarmPanel() {
     }
   }, [stopIPC])
 
+  const handleNodeClick = useCallback((nodeId: string) => {
+    setSelectedNodeId(prev => prev === nodeId ? null : nodeId)
+  }, [setSelectedNodeId])
+
   const progress = selectedSession
     ? selectedSession.state.currentRound / Math.max(1, selectedSession.config.maxRounds)
     : 0
 
   return (
     <div className={styles.root}>
-      {/* New Session Modal */}
       {showModal && (
         <div className={styles.modal}>
           <div className={styles.modalOverlay} onClick={() => setShowModal(false)} />
@@ -201,7 +234,6 @@ export function SwarmPanel() {
         </div>
       )}
 
-      {/* Sidebar */}
       <aside className={styles.sidebar}>
         <div className={styles.sidebarHeader}>
           <span className={styles.sidebarTitle}>Sessions</span>
@@ -215,7 +247,7 @@ export function SwarmPanel() {
           </button>
         </div>
 
-            <div className={styles.sessionList}>
+        <div className={styles.sessionList}>
           {sessions.length === 0 ? (
             <div className={styles.emptyList}>
               <div>No swarm sessions yet</div>
@@ -250,11 +282,10 @@ export function SwarmPanel() {
         </div>
       </aside>
 
-      {/* Detail view */}
       <div className={styles.detail}>
         {!selectedSession ? (
           <div className={styles.emptyDetail}>
-            <div className={styles.emptyIcon}>—</div>
+            <div className={styles.emptyIcon}>◈</div>
             <div className={styles.emptyTitle}>No session selected</div>
             <div className={styles.emptyText}>Create a new swarm session to get started</div>
             <button className={styles.emptyBtn} onClick={() => setShowModal(true)}>
@@ -263,7 +294,6 @@ export function SwarmPanel() {
           </div>
         ) : (
           <>
-            {/* Header */}
             <div className={styles.detailHeader}>
               <div className={styles.detailTitleRow}>
                 <h2 className={styles.detailTitle}>{selectedSession.name}</h2>
@@ -290,12 +320,16 @@ export function SwarmPanel() {
               </div>
             </div>
 
-            {/* Graph flow */}
-            <div className={styles.progressSection} style={{ borderBottom: 'none', paddingBottom: 0 }}>
-              <GraphFlow activeNode={activeNode} />
+            <div className={styles.graphSection}>
+              <SwarmGraph
+                nodeStates={nodeStates}
+                activeNode={activeNode}
+                selectedNodeId={selectedNodeId}
+                onNodeClick={handleNodeClick}
+                edgeMessages={edgeMessages}
+              />
             </div>
 
-            {/* Progress */}
             <div className={styles.progressSection}>
               <div className={styles.progressRow}>
                 <span className={styles.progressLabel}>
@@ -318,7 +352,6 @@ export function SwarmPanel() {
               </div>
             </div>
 
-            {/* Recent output */}
             {selectedSession.state.messages.length > 0 && (() => {
               const allMessages = selectedSession.state.messages
               const toolCount = allMessages.filter(m => m.includes('[Tool:')).length
@@ -349,7 +382,6 @@ export function SwarmPanel() {
               )
             })()}
 
-            {/* Agent roster — populated from SwarmService.getAgents() */}
             <div className={styles.section}>
               <div className={styles.sectionTitle}>Agent Roster</div>
               {sessionAgents.length === 0 ? (
@@ -357,14 +389,16 @@ export function SwarmPanel() {
               ) : (
                 <div className={styles.agentGrid}>
                   {sessionAgents.map((agent) => {
-                    const status = getAgentStatus(agent.role, selectedSession.state.status, activeNode)
+                    const meta = ROLE_META[agent.role] ?? { label: agent.role, icon: '⚙', color: 'var(--color-accent)' }
+                    const nodeState = nodeStates[agent.role]
+                    const status = nodeState?.status ?? 'idle'
                     return (
-                      <div key={agent.id} className={styles.agentCard}>
-                        <div className={styles.agentIcon}>{ROLE_LABELS[agent.role] ?? agent.role}</div>
+                      <div key={agent.id} className={styles.agentCard} style={{ borderLeftColor: meta.color }}>
+                        <div className={styles.agentIcon}>{meta.icon}</div>
                         <div className={styles.agentInfo}>
-                          <div className={styles.agentRole}>{agent.role}</div>
+                          <div className={styles.agentRole}>{meta.label}</div>
                           <div className={styles.agentId}>{agent.id.slice(0, 8)}</div>
-                          <span className={`${styles.agentStatus} ${styles[`agentStatus${status.charAt(0).toUpperCase() + status.slice(1)}`]}`}>
+                          <span className={`${styles.agentStatus} ${styles[`agentStatus${status.charAt(0).toUpperCase()}${status.slice(1)}`] ?? ''}`}>
                             {status}
                           </span>
                         </div>
@@ -375,7 +409,6 @@ export function SwarmPanel() {
               )}
             </div>
 
-            {/* Config */}
             <div className={styles.section}>
               <div className={styles.sectionTitle}>Configuration</div>
               <div className={styles.configGrid}>
@@ -404,6 +437,13 @@ export function SwarmPanel() {
           </>
         )}
       </div>
+
+      {selectedNodeState && (
+        <NodeDetailPanel
+          nodeState={selectedNodeState}
+          onClose={() => setSelectedNodeId(null)}
+        />
+      )}
     </div>
   )
 }

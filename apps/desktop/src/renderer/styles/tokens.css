@@ -88,6 +88,29 @@
   --z-modal: 400;
   --z-toast: 500;
 
+  /* Swarm agent role colors */
+  --swarm-scout: #60a5fa;
+  --swarm-scout-bg: rgba(96, 165, 250, 0.12);
+  --swarm-scout-border: rgba(96, 165, 250, 0.35);
+  --swarm-architect: #a78bfa;
+  --swarm-architect-bg: rgba(167, 139, 250, 0.12);
+  --swarm-architect-border: rgba(167, 139, 250, 0.35);
+  --swarm-coordinator: #f472b6;
+  --swarm-coordinator-bg: rgba(244, 114, 182, 0.12);
+  --swarm-coordinator-border: rgba(244, 114, 182, 0.35);
+  --swarm-builder: #fbbf24;
+  --swarm-builder-bg: rgba(251, 191, 36, 0.12);
+  --swarm-builder-border: rgba(251, 191, 36, 0.35);
+  --swarm-reviewer: #34d399;
+  --swarm-reviewer-bg: rgba(52, 211, 153, 0.12);
+  --swarm-reviewer-border: rgba(52, 211, 153, 0.35);
+  --swarm-tester: #f87171;
+  --swarm-tester-bg: rgba(248, 113, 113, 0.12);
+  --swarm-tester-border: rgba(248, 113, 113, 0.35);
+  --swarm-docwriter: #38bdf8;
+  --swarm-docwriter-bg: rgba(56, 189, 248, 0.12);
+  --swarm-docwriter-border: rgba(56, 189, 248, 0.35);
+
   /* Layout */
   --sidebar-width: 220px;
   --right-panel-width: 280px;

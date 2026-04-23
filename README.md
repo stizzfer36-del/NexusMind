@@ -3,6 +3,8 @@
 > **The Reliable AI IDE** — No crashes, no surprises, no context loss. Built by agents, for serious builders.
 
 [![Reliability](https://img.shields.io/badge/reliability-99.97%25-brightgreen)](./.github/RELIABILITY.md)
+[![NexusGuard](https://img.shields.io/badge/NexusGuard-Active-brightgreen?logo=shield&logoColor=white&labelColor=2ea043)](./docs/guard.md)
+[![Security](https://img.shields.io/badge/security-A%2B-brightgreen?style=flat&logo=security&logoColor=white)](./docs/guard.md)
 [![Discord](https://img.shields.io/discord/123456789?color=7289da&label=Discord&logo=discord)](https://discord.gg/nexusmind)
 [![Twitter](https://img.shields.io/twitter/follow/nexusmindai?style=flat&color=1DA1F2)](https://twitter.com/nexusmindai)
 [![YouTube](https://img.shields.io/youtube/channel/subscribers/UCxxxx?color=FF0000&label=YouTube)](https://youtube.com/nexusmind)
@@ -11,13 +13,19 @@
 
 ## The Problem With Cursor (And Why We Built This)
 
-**You know the feeling.** You've been pair programming with AI for an hour. You've explained your architecture, your patterns, your conventions. Then you start a new chat to tackle the next feature and... **it's all gone.** The AI is a goldfish again. You're back to explaining what a "UserService" is.
+**You know the feeling.** You've been pair programming with AI for an hour. You've explained your architecture, your patterns, your conventions. Then:
 
-That's **context rot**, and it's costing you hours every week.
+1. **Crash.** The IDE freezes. You restart. **All context gone.** The AI is a goldfish again.
+2. **Code reversion.** The AI helpfully "fixes" something and undoes your morning's work.
+3. **Surprise bill.** You check your credit card: **$400** this month. For context windows. For "premium models." For features you never asked for.
 
-Or worse: You check your credit card statement and see Cursor charged you **$400** this month. For context windows. For "premium models." For features you never asked for.
+This isn't sustainable. This isn't engineering. This is gambling with your productivity.
 
 **We said: enough.**
+
+We're building the AI IDE that **just works**. No crashes. No surprises. No lost context.
+
+**[See the full comparison →](./docs/COMPARISON.md)**
 
 ## What Makes NexusMind Different
 
@@ -46,12 +54,16 @@ While Cursor starts every chat with a blank slate, NexusMind stores every archit
 
 ### 🛡️ **Security Before Commits**
 
-Cursor's Bugbot reviews PRs after the damage is done. NexusMind's **Guard** scans before you commit:
+Cursor's Bugbot reviews PRs after the damage is done. NexusMind's **NexusGuard** scans before you commit:
 
-- semgrep static analysis
-- npm audit integration  
-- trufflehog secrets detection
-- Approval workflows that actually block bad code
+- **Security Score** — A/B/C/D/F grade with trend tracking across scans
+- **Severity badges** — CRITICAL/HIGH/MEDIUM/LOW with file locations and line numbers
+- **AI Fix Suggestions** — One-click "Fix" button generates remediation code
+- **SARIF Export** — Industry-standard format for CI/CD integration
+- **Pre-commit hooks** — Automatically block commits containing secrets
+- **Real-time scanning** — Scan files on save for instant feedback
+- **3 scanners** — semgrep static analysis, npm audit, trufflehog secrets detection
+- **Approval workflows** — Block shipping on critical findings
 
 ### 🐝 **7 Specialized Agents, Not One Confused Assistant**
 
@@ -175,7 +187,7 @@ nexus run-swarm --goal "Your feature here"
 | **Memory** | Persistent, 4 types, cross-session | Per-session only | Save hours of re-explaining |
 | **Pricing** | Transparent limits, BYOK | Opaque credits | No surprise bills |
 | **Agents** | 7-role swarm with reviews | Single agent | Better code quality |
-| **Security** | Pre-commit scanning | Post-PR Bugbot | Catch issues earlier |
+| **Security** | Pre-commit scanning + SARIF + AI fixes | Post-PR Bugbot | Catch issues earlier |
 | **Stability** | Local-first, 99.97% uptime | Cloud agents, crashes | Work offline, reliably |
 | **Control** | You own everything | They own the experience | No vendor lock-in |
 | **Reliability** | Crash recovery, state persists | Lose context on crash | Never lose work |
@@ -244,6 +256,32 @@ MIT — Do whatever you want. Build something amazing.
 
 ---
 
-**NexusMind** — *Built by agents, for builders. No context rot, no surprise bills, no compromises.*
+**NexusMind** — *The reliable AI IDE. No crashes, no surprises, no compromises.*
 
-[Get Started](#quick-start) · [Join Discord](https://discord.gg/nexusmind) · [Read Docs](./docs/architecture.md)
+[Get Started](#quick-start) · [Why NexusMind?](./docs/WHY_NEXUSMIND.md) · [Full Comparison](./docs/COMPARISON.md) · [Reliability Promise](./.github/RELIABILITY.md) · [Join Discord](https://discord.gg/nexusmind) · [Read Docs](./docs/architecture.md)
+
+---
+
+## Product Positioning
+
+**Tagline:** *The AI IDE for developers who ship production code.*
+
+**One-liner:** NexusMind is the reliable alternative to Cursor — local-first, transparent pricing, and persistent memory that actually works.
+
+**Key differentiators:**
+1. **Reliability first** — Local architecture means no crashes, no context loss
+2. **Transparent pricing** — BYOK with hard limits, zero markup
+3. **Persistent memory** — Agents remember across sessions
+4. **Engineering discipline** — Reviews, tests, and security built-in
+
+**For developers who:**
+- Are tired of surprise bills
+- Work offline or want to
+- Value stability over speed
+- Want to own their tools
+- Are building something serious
+
+**Not for:**
+- Developers who want the simplest setup at any cost
+- Those who prefer "vibe coding" without guardrails
+- Teams comfortable with opaque cloud services

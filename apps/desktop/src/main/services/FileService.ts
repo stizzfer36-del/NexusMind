@@ -4,10 +4,6 @@ import { ServiceRegistry, SERVICE_TOKENS } from '../ServiceRegistry.js'
 import { WindowManager } from '../windows/WindowManager.js'
 import { applyDiff, type DiffResult } from '@nexusmind/shared'
 
-// ---------------------------------------------------------------------------
-// FileService
-// ---------------------------------------------------------------------------
-
 export interface FileEntry {
   name: string
   path: string
@@ -20,6 +16,9 @@ export class FileService {
   private workspaceRoot: string
   private watchers = new Map<string, fs.FSWatcher>()
   private watchIdCounter = 0
+  private saveScanEnabled = false
+  private saveScanDebounceMs = 2000
+  private saveScanTimers = new Map<string, ReturnType<typeof setTimeout>>()
 
   constructor(workspaceRoot?: string) {
     this.workspaceRoot = workspaceRoot ?? process.cwd()
@@ -32,22 +31,21 @@ export class FileService {
       if (saved) {
         this.workspaceRoot = saved
       }
+      const scanOnSave = settings.get<boolean | undefined>('guardScanOnSave', undefined)
+      if (scanOnSave !== undefined) {
+        this.saveScanEnabled = scanOnSave
+      }
     } catch {
       // Settings not available — keep default
     }
     ServiceRegistry.getInstance().register(SERVICE_TOKENS.FileService, this)
   }
 
-  // -------------------------------------------------------------------------
-  // Internal helpers
-  // -------------------------------------------------------------------------
-
   private resolve(filePath: string): string {
     const absolute = path.isAbsolute(filePath)
       ? filePath
       : path.join(this.workspaceRoot, filePath)
 
-    // Security: prevent escaping workspaceRoot via ../ traversal
     const resolved = path.resolve(absolute)
     const rootResolved = path.resolve(this.workspaceRoot)
     if (!resolved.startsWith(rootResolved)) {
@@ -60,28 +58,51 @@ export class FileService {
     WindowManager.getInstance().get('main')?.webContents.send(channel, payload)
   }
 
-  // -------------------------------------------------------------------------
-  // file:read
-  // -------------------------------------------------------------------------
+  private triggerSaveScan(filePath: string): void {
+    if (!this.saveScanEnabled) return
+
+    const existing = this.saveScanTimers.get(filePath)
+    if (existing) clearTimeout(existing)
+
+    const timer = setTimeout(() => {
+      this.saveScanTimers.delete(filePath)
+      this.push('guard:fileScanResult', { filePath, findings: [] })
+      try {
+        const guardService = ServiceRegistry.getInstance().resolve<any>(SERVICE_TOKENS.GuardService)
+        if (guardService && typeof guardService.scanFile === 'function') {
+          guardService.scanFile(filePath).then((findings: any[]) => {
+            this.push('guard:fileScanResult', { filePath, findings })
+          }).catch(() => {})
+        }
+      } catch {}
+    }, this.saveScanDebounceMs)
+
+    this.saveScanTimers.set(filePath, timer)
+  }
+
+  setSaveScanEnabled(enabled: boolean): void {
+    this.saveScanEnabled = enabled
+    try {
+      const settings = ServiceRegistry.getInstance().resolve<any>(SERVICE_TOKENS.Settings)
+      settings.set('guardScanOnSave', enabled)
+    } catch {}
+  }
+
+  isSaveScanEnabled(): boolean {
+    return this.saveScanEnabled
+  }
 
   read(filePath: string): string {
     const target = this.resolve(filePath)
     return fs.readFileSync(target, 'utf-8')
   }
 
-  // -------------------------------------------------------------------------
-  // file:write
-  // -------------------------------------------------------------------------
-
   write(filePath: string, content: string): void {
     const target = this.resolve(filePath)
     fs.mkdirSync(path.dirname(target), { recursive: true })
     fs.writeFileSync(target, content, 'utf-8')
+    this.triggerSaveScan(filePath)
   }
-
-  // -------------------------------------------------------------------------
-  // file:listDir
-  // -------------------------------------------------------------------------
 
   listDir(dirPath: string): FileEntry[] {
     const target = this.resolve(dirPath)
@@ -128,21 +149,14 @@ export class FileService {
     }
   }
 
-  // -------------------------------------------------------------------------
-  // file:applyDiff
-  // -------------------------------------------------------------------------
-
   applyDiff(filePath: string, diff: DiffResult): string {
     const target = this.resolve(filePath)
     const original = fs.readFileSync(target, 'utf-8')
     const updated = applyDiff(original, diff)
     fs.writeFileSync(target, updated, 'utf-8')
+    this.triggerSaveScan(filePath)
     return updated
   }
-
-  // -------------------------------------------------------------------------
-  // file:watch
-  // -------------------------------------------------------------------------
 
   watch(filePath: string): string {
     const target = this.resolve(filePath)
@@ -173,11 +187,11 @@ export class FileService {
       watcher.close()
     }
     this.watchers.clear()
+    for (const timer of this.saveScanTimers.values()) {
+      clearTimeout(timer)
+    }
+    this.saveScanTimers.clear()
   }
-
-  // -------------------------------------------------------------------------
-  // IPC handlers
-  // -------------------------------------------------------------------------
 
   getHandlers(): Record<string, (event: any, ...args: any[]) => any> {
     return {
@@ -188,6 +202,8 @@ export class FileService {
       'file:applyDiff': (_event: any, filePath: string, diff: DiffResult) => this.applyDiff(filePath, diff),
       'file:watch': (_event: any, filePath: string) => this.watch(filePath),
       'file:unwatch': (_event: any, id: string) => this.unwatch(id),
+      'file:setSaveScanEnabled': (_event: any, enabled: boolean) => this.setSaveScanEnabled(enabled),
+      'file:isSaveScanEnabled': () => this.isSaveScanEnabled(),
     }
   }
 }

@@ -13,5 +13,11 @@ export function createGuardIpcHandlers(
     'guard:setPolicy': (_event: any, policy: GuardPolicy) => service.setPolicy(policy),
     'guard:approvalResponse': (_event: any, payload: { requestId: string; approved: boolean }) =>
       service.resolveApproval(payload.requestId, payload.approved),
+    'guard:getSecurityScore': (_event: any) => service.getSecurityScore(),
+    'guard:getTrends': (_event: any) => service.getTrends(),
+    'guard:exportSarif': (_event: any, runId?: string) => service.exportSarif(runId),
+    'guard:fixSuggestion': async (_event: any, findingId: string) => service.getFixSuggestion(findingId),
+    'guard:scanFile': async (_event: any, filePath: string) => service.scanFile(filePath),
+    'guard:preCommitCheck': async (_event: any) => service.preCommitCheck(),
   }
 }

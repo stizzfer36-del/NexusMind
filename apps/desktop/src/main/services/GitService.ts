@@ -1,4 +1,6 @@
 import { execSync } from 'child_process'
+import fs from 'fs'
+import path from 'path'
 import { ServiceRegistry, SERVICE_TOKENS } from '../ServiceRegistry.js'
 
 export class GitService {
@@ -55,6 +57,111 @@ export class GitService {
 
   checkoutBranch(name: string): string {
     return this._run(`git checkout ${name}`)
+  }
+
+  installPreCommitHook(): { installed: boolean; path: string; error?: string } {
+    if (!this.repoPath) {
+      return { installed: false, path: '', error: 'Git repository not set. Call setRepo first.' }
+    }
+
+    try {
+      const hooksDir = path.join(this.repoPath, '.git', 'hooks')
+      if (!fs.existsSync(hooksDir)) {
+        fs.mkdirSync(hooksDir, { recursive: true })
+      }
+
+      const hookPath = path.join(hooksDir, 'pre-commit')
+      const hookContent = `#!/bin/sh
+# NexusGuard pre-commit hook
+# Automatically runs security scan before each commit
+echo "[NexusGuard] Running pre-commit security scan..."
+
+# Check for secrets in staged files
+STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -v node_modules | grep -v '.lock$')
+
+if [ -z "$STAGED_FILES" ]; then
+  echo "[NexusGuard] No staged files to scan."
+  exit 0
+fi
+
+SECRETS_FOUND=0
+
+for FILE in $STAGED_FILES; do
+  # Check for common secret patterns
+  if git diff --cached -- "$FILE" | grep -qE '(api[_-]?key|apikey|secret|token|password|passwd|pwd)\\s*[:=]\\s*["'"'"']?[A-Za-z0-9\\-_]{16,}'; then
+    echo "[NexusGuard] WARNING: Potential secret detected in $FILE"
+    SECRETS_FOUND=1
+  fi
+
+  # Check for OpenAI keys
+  if git diff --cached -- "$FILE" | grep -qE 'sk-[A-Za-z0-9]{40,}'; then
+    echo "[NexusGuard] CRITICAL: OpenAI API key detected in $FILE"
+    SECRETS_FOUND=1
+  fi
+
+  # Check for AWS keys
+  if git diff --cached -- "$FILE" | grep -qE 'AKIA[0-9A-Z]{16}'; then
+    echo "[NexusGuard] CRITICAL: AWS access key detected in $FILE"
+    SECRETS_FOUND=1
+  fi
+
+  # Check for GitHub tokens
+  if git diff --cached -- "$FILE" | grep -qE 'ghp_[A-Za-z0-9]{36}'; then
+    echo "[NexusGuard] CRITICAL: GitHub token detected in $FILE"
+    SECRETS_FOUND=1
+  fi
+done
+
+if [ $SECRETS_FOUND -ne 0 ]; then
+  echo ""
+  echo "[NexusGuard] COMMIT BLOCKED: Secrets detected in staged files."
+  echo "[NexusGuard] Remove secrets and rotate them immediately."
+  echo "[NexusGuard] Use 'git commit --no-verify' to bypass (not recommended)."
+  exit 1
+fi
+
+echo "[NexusGuard] No secrets detected. Commit allowed."
+exit 0
+`
+
+      fs.writeFileSync(hookPath, hookContent, { mode: 0o755 })
+      return { installed: true, path: hookPath }
+    } catch (err: any) {
+      return { installed: false, path: '', error: String(err?.message ?? err) }
+    }
+  }
+
+  uninstallPreCommitHook(): { removed: boolean; error?: string } {
+    if (!this.repoPath) {
+      return { removed: false, error: 'Git repository not set.' }
+    }
+
+    try {
+      const hookPath = path.join(this.repoPath, '.git', 'hooks', 'pre-commit')
+      if (fs.existsSync(hookPath)) {
+        const content = fs.readFileSync(hookPath, 'utf-8')
+        if (content.includes('NexusGuard')) {
+          fs.unlinkSync(hookPath)
+          return { removed: true }
+        }
+        return { removed: false, error: 'Pre-commit hook exists but is not managed by NexusGuard.' }
+      }
+      return { removed: false, error: 'No pre-commit hook found.' }
+    } catch (err: any) {
+      return { removed: false, error: String(err?.message ?? err) }
+    }
+  }
+
+  isPreCommitHookInstalled(): boolean {
+    if (!this.repoPath) return false
+    try {
+      const hookPath = path.join(this.repoPath, '.git', 'hooks', 'pre-commit')
+      if (!fs.existsSync(hookPath)) return false
+      const content = fs.readFileSync(hookPath, 'utf-8')
+      return content.includes('NexusGuard')
+    } catch {
+      return false
+    }
   }
 
   getMCPTools(): Array<{
@@ -147,6 +254,9 @@ export class GitService {
       'git:listBranches': () => this.listBranches(),
       'git:createBranch': (_event: any, name: string) => this.createBranch(name),
       'git:setRepo': (_event: any, path: string) => this.setRepo(path),
+      'git:installPreCommitHook': () => this.installPreCommitHook(),
+      'git:uninstallPreCommitHook': () => this.uninstallPreCommitHook(),
+      'git:isPreCommitHookInstalled': () => this.isPreCommitHookInstalled(),
     }
   }
 

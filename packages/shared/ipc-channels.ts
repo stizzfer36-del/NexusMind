@@ -185,6 +185,19 @@ export interface IpcEvents {
   // dialog
   'dialog:openDirectory': () => string | null
 
+  // git
+  'git:status': () => string
+  'git:diff': (file?: string) => string
+  'git:commit': (message: string, files?: string[]) => string
+  'git:log': (n?: number) => string
+  'git:branch': () => string
+  'git:listBranches': () => string
+  'git:createBranch': (name: string) => string
+  'git:setRepo': (path: string) => void
+  'git:installPreCommitHook': () => { installed: boolean; path: string; error?: string }
+  'git:uninstallPreCommitHook': () => { removed: boolean; error?: string }
+  'git:isPreCommitHookInstalled': () => boolean
+
   // context
   'context:setActiveFile': (filePath: string, content: string) => { ok: boolean }
   'context:getActiveFile': () => { path: string; content: string } | null
@@ -200,6 +213,8 @@ export interface IpcEvents {
   'file:applyDiff': (filePath: string, diff: import('./utils/diff.utils.js').DiffResult) => string
   'file:watch': (filePath: string) => string
   'file:unwatch': (id: string) => void
+  'file:setSaveScanEnabled': (enabled: boolean) => void
+  'file:isSaveScanEnabled': () => boolean
 }
 
 // ---------------------------------------------------------------------------

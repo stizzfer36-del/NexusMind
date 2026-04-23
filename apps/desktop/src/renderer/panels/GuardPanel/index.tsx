@@ -1,12 +1,100 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useIPC, useIPCEvent } from '../../hooks'
-import type { GuardFinding, GuardRun, GuardPolicy, GuardSeverity } from '@nexusmind/shared'
+import type { GuardFinding, GuardRun, GuardPolicy, GuardSeverity, SecurityScore, GuardTrendPoint, FixSuggestion } from '@nexusmind/shared'
 import styles from './GuardPanel.module.css'
 
 const SEV_ORDER: GuardSeverity[] = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW']
 
+const SEV_COLORS: Record<GuardSeverity, string> = {
+  CRITICAL: '#f97316',
+  HIGH: '#ef4444',
+  MEDIUM: '#f59e0b',
+  LOW: '#818cf8',
+}
+
+const GRADE_COLORS: Record<string, string> = {
+  'A+': '#22c55e',
+  'A': '#22c55e',
+  'B': '#f59e0b',
+  'C': '#f97316',
+  'D': '#ef4444',
+  'F': '#dc2626',
+}
+
 function fmt(ts: number) {
   return new Date(ts).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+}
+
+function ScoreRing({ score, grade }: { score: number; grade: string }) {
+  const radius = 30
+  const circumference = 2 * Math.PI * radius
+  const offset = circumference - (score / 100) * circumference
+  const color = GRADE_COLORS[grade] ?? '#818cf8'
+
+  return (
+    <div className={styles.scoreRing}>
+      <svg className={styles.scoreRingSvg} viewBox="0 0 72 72">
+        <circle className={styles.scoreRingBg} cx="36" cy="36" r={radius} />
+        <circle
+          className={styles.scoreRingFill}
+          cx="36" cy="36" r={radius}
+          stroke={color}
+          strokeDasharray={circumference}
+          strokeDashoffset={offset}
+        />
+      </svg>
+      <div className={styles.scoreGrade}>
+        <span className={styles.scoreGradeLetter} style={{ color }}>{grade}</span>
+        <span className={styles.scoreGradeLabel}>{score}/100</span>
+      </div>
+    </div>
+  )
+}
+
+function TrendChart({ trends }: { trends: GuardTrendPoint[] }) {
+  if (trends.length < 2) {
+    return (
+      <div className={styles.trendChart} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
+          {trends.length === 0 ? 'No scan history' : 'Need 2+ scans'}
+        </span>
+      </div>
+    )
+  }
+
+  const maxTotal = Math.max(...trends.map(t => t.total), 1)
+  const w = 200
+  const h = 70
+  const padY = 4
+  const chartH = h - padY * 2
+
+  const points = trends.map((t, i) => ({
+    x: (i / (trends.length - 1)) * w,
+    y: padY + chartH - (t.total / maxTotal) * chartH,
+    ...t,
+  }))
+
+  const linePath = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')
+  const areaPath = `${linePath} L ${points[points.length - 1].x} ${h} L ${points[0].x} ${h} Z`
+
+  const criticalPoints = trends.map((t, i) => ({
+    x: (i / (trends.length - 1)) * w,
+    y: padY + chartH - (t.critical / maxTotal) * chartH,
+  }))
+  const criticalPath = criticalPoints.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')
+
+  return (
+    <div className={styles.trendChart}>
+      <svg className={styles.trendSvg} viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none">
+        {[0.25, 0.5, 0.75].map(ratio => (
+          <line key={ratio} className={styles.trendGridLine} x1={0} y1={padY + chartH * ratio} x2={w} y2={padY + chartH * ratio} />
+        ))}
+        <path className={styles.trendArea} d={areaPath} fill="#7c6af7" />
+        <path className={styles.trendLine} d={linePath} stroke="#7c6af7" />
+        <path className={styles.trendLine} d={criticalPath} stroke="#f97316" strokeDasharray="3 3" />
+      </svg>
+    </div>
+  )
 }
 
 export function GuardPanel() {
@@ -16,6 +104,15 @@ export function GuardPanel() {
   const getFindingsIPC = useIPC<'guard:getFindings'>()
   const getPolicyIPC = useIPC<'guard:getPolicy'>()
   const setPolicyIPC = useIPC<'guard:setPolicy'>()
+  const getSecurityScoreIPC = useIPC<'guard:getSecurityScore'>()
+  const getTrendsIPC = useIPC<'guard:getTrends'>()
+  const exportSarifIPC = useIPC<'guard:exportSarif'>()
+  const fixSuggestionIPC = useIPC<'guard:fixSuggestion'>()
+  const installHookIPC = useIPC<'git:installPreCommitHook'>()
+  const isHookInstalledIPC = useIPC<'git:isPreCommitHookInstalled'>()
+  const uninstallHookIPC = useIPC<'git:uninstallPreCommitHook'>()
+  const setSaveScanIPC = useIPC<'file:setSaveScanEnabled'>()
+  const isSaveScanIPC = useIPC<'file:isSaveScanEnabled'>()
 
   const [runs, setRuns] = useState<GuardRun[]>([])
   const [selectedRun, setSelectedRun] = useState<GuardRun | null>(null)
@@ -27,6 +124,12 @@ export function GuardPanel() {
   const [sevFilter, setSevFilter] = useState<GuardSeverity | 'all'>('all')
   const [sourceFilter, setSourceFilter] = useState<string>('all')
   const [scannerStatus, setScannerStatus] = useState<Record<string, string>>({})
+  const [securityScore, setSecurityScore] = useState<SecurityScore | null>(null)
+  const [trends, setTrends] = useState<GuardTrendPoint[]>([])
+  const [fixSuggestion, setFixSuggestion] = useState<FixSuggestion | null>(null)
+  const [fixLoading, setFixLoading] = useState<string | null>(null)
+  const [hookInstalled, setHookInstalled] = useState(false)
+  const [saveScanEnabled, setSaveScanEnabled] = useState(false)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const loadRuns = useCallback(async () => {
@@ -42,9 +145,27 @@ export function GuardPanel() {
     } catch (e) { setError(String(e)) }
   }, [listRunsIPC, getFindingsIPC, selectedRun])
 
+  const loadSecurityScore = useCallback(async () => {
+    try {
+      const score = await getSecurityScoreIPC.invoke('guard:getSecurityScore')
+      setSecurityScore(score as SecurityScore)
+    } catch {}
+  }, [getSecurityScoreIPC])
+
+  const loadTrends = useCallback(async () => {
+    try {
+      const t = await getTrendsIPC.invoke('guard:getTrends')
+      setTrends(t as GuardTrendPoint[])
+    } catch {}
+  }, [getTrendsIPC])
+
   useEffect(() => {
     loadRuns()
     getPolicyIPC.invoke('guard:getPolicy').then(setPolicy).catch(() => {})
+    loadSecurityScore()
+    loadTrends()
+    isHookInstalledIPC.invoke('git:isPreCommitHookInstalled').then(v => setHookInstalled(!!v)).catch(() => {})
+    isSaveScanIPC.invoke('file:isSaveScanEnabled').then(v => setSaveScanEnabled(!!v)).catch(() => {})
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   useIPCEvent('guard:progress', useCallback((payload: { scanner: string; status: string; findings: GuardFinding[] }) => {
@@ -58,13 +179,16 @@ export function GuardPanel() {
     setRunning(false)
     setFindings(payload.findings)
     loadRuns()
+    loadSecurityScore()
+    loadTrends()
     getRunIPC.invoke('guard:getRun', payload.runId).then(r => {
       if (r) setSelectedRun(r)
     }).catch(() => {})
-  }, [loadRuns, getRunIPC]))
+  }, [loadRuns, loadSecurityScore, loadTrends, getRunIPC]))
 
   const selectRun = useCallback(async (run: GuardRun) => {
     setSelectedRun(run)
+    setFixSuggestion(null)
     try {
       const f = await getFindingsIPC.invoke('guard:getFindings', run.id)
       setFindings(f)
@@ -75,9 +199,9 @@ export function GuardPanel() {
     setRunning(true)
     setError(null)
     setScannerStatus({})
+    setFixSuggestion(null)
     try {
       const { runId } = await runGuardIPC.invoke('guard:run')
-      // Poll until completed as a fallback
       pollRef.current = setInterval(async () => {
         const r = await getRunIPC.invoke('guard:getRun', runId)
         if (r && (r.status === 'COMPLETED' || r.status === 'FAILED')) {
@@ -88,13 +212,15 @@ export function GuardPanel() {
           setSelectedRun(r)
           const f = await getFindingsIPC.invoke('guard:getFindings', runId)
           setFindings(f)
+          loadSecurityScore()
+          loadTrends()
         }
       }, 1500)
     } catch (e) {
       setError(String(e))
       setRunning(false)
     }
-  }, [runGuardIPC, getRunIPC, listRunsIPC, getFindingsIPC])
+  }, [runGuardIPC, getRunIPC, listRunsIPC, getFindingsIPC, loadSecurityScore, loadTrends])
 
   useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current) }, [])
 
@@ -108,6 +234,48 @@ export function GuardPanel() {
     try { await setPolicyIPC.invoke('guard:setPolicy', next) } catch {}
   }, [policy, setPolicyIPC])
 
+  const handleExportSarif = useCallback(async () => {
+    try {
+      const report = await exportSarifIPC.invoke('guard:exportSarif', selectedRun?.id)
+      const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `nexusguard-sarif-${Date.now()}.json`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (e) { setError(String(e)) }
+  }, [exportSarifIPC, selectedRun])
+
+  const handleFixSuggestion = useCallback(async (findingId: string) => {
+    setFixLoading(findingId)
+    setFixSuggestion(null)
+    try {
+      const suggestion = await fixSuggestionIPC.invoke('guard:fixSuggestion', findingId)
+      setFixSuggestion(suggestion as FixSuggestion | null)
+    } catch (e) {
+      setError(String(e))
+    } finally {
+      setFixLoading(null)
+    }
+  }, [fixSuggestionIPC])
+
+  const handleToggleHook = useCallback(async () => {
+    if (hookInstalled) {
+      const result = await uninstallHookIPC.invoke('git:uninstallPreCommitHook')
+      if (result && (result as any).removed) setHookInstalled(false)
+    } else {
+      const result = await installHookIPC.invoke('git:installPreCommitHook')
+      if (result && (result as any).installed) setHookInstalled(true)
+    }
+  }, [hookInstalled, installHookIPC, uninstallHookIPC])
+
+  const handleToggleSaveScan = useCallback(async () => {
+    const next = !saveScanEnabled
+    await setSaveScanIPC.invoke('file:setSaveScanEnabled', next)
+    setSaveScanEnabled(next)
+  }, [saveScanEnabled, setSaveScanIPC])
+
   const filtered = useMemo(
     () => findings.filter(f =>
       (sevFilter === 'all' || f.severity === sevFilter) &&
@@ -117,8 +285,10 @@ export function GuardPanel() {
   )
 
   const summary = selectedRun?.summary
-
   const isBlocking = policy.blockOn.includes('CRITICAL') && (summary?.bySeverity.CRITICAL ?? 0) > 0
+
+  const trendLabel = securityScore?.trend === 'improving' ? '↑ Improving' : securityScore?.trend === 'declining' ? '↓ Declining' : '→ Stable'
+  const trendClass = securityScore?.trend === 'improving' ? styles.trendImproving : securityScore?.trend === 'declining' ? styles.trendDeclining : styles.trendStable
 
   return (
     <div className={styles.root}>
@@ -147,9 +317,51 @@ export function GuardPanel() {
         )}
       </div>
 
-      {isBlocking && (
+      {/* Security Score Hero */}
+      {securityScore && (
+        <div className={styles.scoreHero}>
+          <ScoreRing score={securityScore.score} grade={securityScore.grade} />
+          <div className={styles.scoreDetails}>
+            <div className={styles.scoreTitle}>Security Score</div>
+            <div className={`${styles.scoreTrend} ${trendClass}`}>
+              {trendLabel}
+            </div>
+            <div className={styles.scoreBreakdown}>
+              {securityScore.criticalCount > 0 && (
+                <div className={styles.scoreBreakdownItem}>
+                  <span className={`${styles.scoreBreakdownDot} ${styles.dotCritical}`} />
+                  {securityScore.criticalCount} critical
+                </div>
+              )}
+              {securityScore.highCount > 0 && (
+                <div className={styles.scoreBreakdownItem}>
+                  <span className={`${styles.scoreBreakdownDot} ${styles.dotHigh}`} />
+                  {securityScore.highCount} high
+                </div>
+              )}
+              {securityScore.mediumCount > 0 && (
+                <div className={styles.scoreBreakdownItem}>
+                  <span className={`${styles.scoreBreakdownDot} ${styles.dotMedium}`} />
+                  {securityScore.mediumCount} medium
+                </div>
+              )}
+              {securityScore.lowCount > 0 && (
+                <div className={styles.scoreBreakdownItem}>
+                  <span className={`${styles.scoreBreakdownDot} ${styles.dotLow}`} />
+                  {securityScore.lowCount} low
+                </div>
+              )}
+              {securityScore.totalFindings === 0 && (
+                <span style={{ fontSize: 11, color: '#22c55e' }}>All clear</span>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isBlocking && summary && (
         <div className={styles.blockingBanner}>
-          Blocking: {summary.bySeverity.CRITICAL} Critical finding{summary.bySeverity.CRITICAL !== 1 ? 's' : ''} detected. Review before shipping.
+          ⚠ {summary!.bySeverity.CRITICAL} Critical finding{summary!.bySeverity.CRITICAL !== 1 ? 's' : ''} detected. Review before shipping.
         </div>
       )}
 
@@ -166,7 +378,7 @@ export function GuardPanel() {
           <div className={styles.sidebarHeader}>Runs</div>
           {runs.length === 0 ? (
             <div className={styles.emptyRuns}>
-              <div className={styles.emptyRunsIcon}>⛨</div>
+              <div className={styles.emptyRunsIcon}>🛡</div>
               <div className={styles.emptyRunsTitle}>No scans yet</div>
               <div className={styles.emptyRunsText}>Click Run Guard to scan your project</div>
             </div>
@@ -195,12 +407,15 @@ export function GuardPanel() {
                 {s === 'all' ? 'All' : s}
               </button>
             ))}
-            <span style={{ width: 1, background: 'var(--color-border)', margin: '0 4px', alignSelf: 'stretch' }} />
+            <span className={styles.filterSep} />
             {(['all', 'semgrep', 'npm-audit', 'trufflehog'] as const).map(s => (
               <button key={s} className={`${styles.filterBtn} ${sourceFilter === s ? styles.filterBtnActive : ''}`} onClick={() => setSourceFilter(s)}>
                 {s === 'all' ? 'All sources' : s}
               </button>
             ))}
+            <button className={styles.exportBtn} onClick={handleExportSarif} title="Export SARIF report">
+              ⬇ SARIF
+            </button>
           </div>
 
           <div className={styles.findingsTable}>
@@ -223,13 +438,41 @@ export function GuardPanel() {
                     <span style={{ fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--color-text)' }}>{f.message}</span>
                     <span style={{ fontSize: 10, color: 'var(--color-text-muted)', textAlign: 'right' }}>{f.line ? `L${f.line}` : ''}</span>
                     <span style={{ fontSize: 10, fontFamily: 'monospace', color: 'var(--color-text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.filePath.split('/').pop()}</span>
+                    <button
+                      className={styles.fixBtn}
+                      onClick={(e) => { e.stopPropagation(); handleFixSuggestion(f.id) }}
+                      disabled={fixLoading !== null}
+                      title="Get AI fix suggestion"
+                    >
+                      ✦ Fix
+                    </button>
                   </button>
                   {isExp && (
                     <div className={styles.findingDetail}>
                       <div className={styles.findingMsg}>{f.message}</div>
-                      <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginBottom: 4 }}>{f.filePath}{f.line ? `:${f.line}` : ''}</div>
+                      <div className={styles.findingLocation}>{f.filePath}{f.line ? `:${f.line}` : ''}{f.column ? `:${f.column}` : ''}</div>
                       {f.snippet && <pre className={styles.findingSnippet}>{f.snippet}</pre>}
                       {f.recommendation && <div className={styles.findingRec}>→ {f.recommendation}</div>}
+                      {fixSuggestion && fixSuggestion.findingId === f.id && (
+                        <div className={styles.fixPanel}>
+                          <div className={styles.fixPanelHeader}>
+                            <span className={styles.fixPanelTitle}>AI Suggestion</span>
+                            <span className={`${styles.fixConfidence} ${fixSuggestion.confidence === 'high' ? styles.confidenceHigh : fixSuggestion.confidence === 'medium' ? styles.confidenceMedium : styles.confidenceLow}`}>
+                              {fixSuggestion.confidence} confidence
+                            </span>
+                          </div>
+                          <div className={styles.fixExplanation}>{fixSuggestion.explanation}</div>
+                          {fixSuggestion.suggestedFix && (
+                            <pre className={styles.fixCode}>{fixSuggestion.suggestedFix}</pre>
+                          )}
+                        </div>
+                      )}
+                      {fixLoading === f.id && (
+                        <div style={{ fontSize: 11, color: 'var(--color-accent)', marginTop: 4 }}>
+                          <span className={styles.spinner} style={{ width: 10, height: 10, borderWidth: 1.5, display: 'inline-block', verticalAlign: 'middle', marginRight: 4 }} />
+                          Generating fix…
+                        </div>
+                      )}
                     </div>
                   )}
                 </React.Fragment>
@@ -238,22 +481,76 @@ export function GuardPanel() {
           </div>
         </div>
 
-        {/* Right policy panel */}
+        {/* Right panel */}
         <div className={styles.rightPanel}>
-          <div className={styles.rightHeader}>Policy</div>
-          <div style={{ marginBottom: 12, fontSize: 11, color: 'var(--color-text-muted)' }}>Block ship on:</div>
-          {SEV_ORDER.map(s => (
-            <div key={s} className={styles.policyRow}>
-              <input
-                type="checkbox"
-                className={styles.policyCheck}
-                checked={policy.blockOn.includes(s)}
-                onChange={() => handlePolicyToggle(s)}
-              />
-              <span>{s}</span>
+          {/* Security Score */}
+          <div className={styles.rightSection}>
+            <div className={styles.rightHeader}>Trend</div>
+            <TrendChart trends={trends} />
+            <div style={{ display: 'flex', gap: 8, marginTop: 4, fontSize: 9, color: 'var(--color-text-muted)' }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                <span style={{ width: 8, height: 2, background: '#7c6af7', borderRadius: 1, display: 'inline-block' }} /> Total
+              </span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                <span style={{ width: 8, height: 2, background: '#f97316', borderRadius: 1, display: 'inline-block', borderTop: '1px dashed #f97316' }} /> Critical
+              </span>
             </div>
-          ))}
-          <div style={{ marginTop: 16 }}>
+          </div>
+
+          {/* Policy */}
+          <div className={styles.rightSection}>
+            <div className={styles.rightHeader}>Policy</div>
+            <div style={{ marginBottom: 8, fontSize: 11, color: 'var(--color-text-muted)' }}>Block ship on:</div>
+            {SEV_ORDER.map(s => (
+              <div key={s} className={styles.policyRow}>
+                <input
+                  type="checkbox"
+                  className={styles.policyCheck}
+                  checked={policy.blockOn.includes(s)}
+                  onChange={() => handlePolicyToggle(s)}
+                />
+                <span>{s}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Pre-commit Hook */}
+          <div className={styles.rightSection}>
+            <div className={styles.rightHeader}>Integrations</div>
+            <div className={styles.toggleRow}>
+              <div>
+                <div className={styles.toggleLabel}>Pre-commit Hook</div>
+                <div className={styles.toggleDesc}>Block commits with secrets</div>
+              </div>
+              <button
+                className={`${styles.toggleSwitch} ${hookInstalled ? styles.toggleSwitchActive : ''}`}
+                onClick={handleToggleHook}
+                role="switch"
+                aria-checked={hookInstalled}
+                aria-label="Toggle pre-commit hook"
+              >
+                <span className={styles.toggleKnob} />
+              </button>
+            </div>
+            <div className={styles.toggleRow}>
+              <div>
+                <div className={styles.toggleLabel}>Scan on Save</div>
+                <div className={styles.toggleDesc}>Auto-scan files on save</div>
+              </div>
+              <button
+                className={`${styles.toggleSwitch} ${saveScanEnabled ? styles.toggleSwitchActive : ''}`}
+                onClick={handleToggleSaveScan}
+                role="switch"
+                aria-checked={saveScanEnabled}
+                aria-label="Toggle scan on save"
+              >
+                <span className={styles.toggleKnob} />
+              </button>
+            </div>
+          </div>
+
+          {/* Scanners */}
+          <div className={styles.rightSection}>
             <div className={styles.rightHeader}>Scanners</div>
             {(['semgrep', 'npm-audit', 'trufflehog'] as const).map(src => {
               const status = scannerStatus[src]
