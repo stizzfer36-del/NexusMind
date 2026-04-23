@@ -80,18 +80,19 @@ export class EventRecorder {
       ...event,
     }
     try {
-      this.db.getDb().prepare(
-        `INSERT INTO replay_events (id, session_id, type, timestamp, node_id, agent_id, payload, duration_ms)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+      const dbService = ServiceRegistry.getInstance().resolve<DatabaseService>(SERVICE_TOKENS.DB)
+      const db = dbService.getDb()
+      db.prepare(
+        `INSERT INTO replay_events (id, session_id, type, node_id, agent_id, payload_json, duration_ms, timestamp) VALUES (?,?,?,?,?,?,?,?)`
       ).run(
-        full.id,
-        full.sessionId,
-        full.type,
-        full.timestamp,
-        full.nodeId ?? null,
-        full.agentId ?? null,
-        JSON.stringify(full.payload),
-        full.durationMs ?? null,
+        crypto.randomUUID(),
+        event.sessionId,
+        event.type,
+        event.nodeId ?? null,
+        event.agentId ?? null,
+        JSON.stringify(event.payload ?? {}),
+        event.durationMs ?? null,
+        Date.now(),
       )
     } catch (err) {
       console.warn('[EventRecorder] record failed:', err)

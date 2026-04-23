@@ -2,7 +2,6 @@ import crypto from 'crypto'
 import fs from 'fs'
 import path from 'path'
 import { spawn, type ChildProcess } from 'child_process'
-import { execSync } from 'child_process'
 import { ServiceRegistry, SERVICE_TOKENS } from '../ServiceRegistry.js'
 import { WindowManager } from '../windows/WindowManager.js'
 import type { MemoryService } from './MemoryService.js'
@@ -140,23 +139,74 @@ export class MCPService {
       {
         name: 'run_shell',
         description: 'Run a shell command and return stdout, stderr, and exit code',
-        execute: (args) => {
+        execute: async (args) => {
           const command = args['command'] as string
           const cwd = args['cwd'] as string | undefined
-          try {
-            const stdout = execSync(command, {
-              encoding: 'utf8',
-              cwd,
-              timeout: 30000,
-            })
-            return { stdout, stderr: '', exitCode: 0 }
-          } catch (err: any) {
+
+          const BLOCKED = [
+            /rm\s+-rf/,
+            /mkfs/,
+            /dd\s+if=/,
+            /shutdown/,
+            /reboot/,
+            /chmod\s+777/,
+          ]
+
+          if (BLOCKED.some((pattern) => pattern.test(command))) {
             return {
-              stdout: err.stdout ?? '',
-              stderr: err.stderr ?? err.message ?? String(err),
-              exitCode: err.status ?? 1,
+              stdout: '',
+              stderr: 'Command blocked by NexusGuard shell policy',
+              exitCode: 126,
             }
           }
+
+          return new Promise<{ stdout: string; stderr: string; exitCode: number }>((resolve) => {
+            const proc = spawn('sh', ['-c', command], {
+              cwd,
+              stdio: ['pipe', 'pipe', 'pipe'],
+            })
+
+            let stdout = ''
+            let stderr = ''
+            let killedByTimeout = false
+
+            const timeout = setTimeout(() => {
+              killedByTimeout = true
+              proc.kill('SIGTERM')
+            }, 30000)
+
+            proc.stdout?.on('data', (chunk: Buffer) => {
+              stdout += chunk.toString('utf8')
+              if (stdout.length > 50000) {
+                stdout = stdout.slice(0, 50000)
+              }
+            })
+
+            proc.stderr?.on('data', (chunk: Buffer) => {
+              stderr += chunk.toString('utf8')
+              if (stderr.length > 10000) {
+                stderr = stderr.slice(0, 10000)
+              }
+            })
+
+            proc.on('error', (err) => {
+              clearTimeout(timeout)
+              resolve({
+                stdout,
+                stderr: err.message ?? String(err),
+                exitCode: 1,
+              })
+            })
+
+            proc.on('close', (code) => {
+              clearTimeout(timeout)
+              resolve({
+                stdout,
+                stderr: killedByTimeout ? (stderr || 'Command timed out after 30s') : stderr,
+                exitCode: killedByTimeout ? 124 : (code ?? 0),
+              })
+            })
+          })
         },
       },
       {
@@ -398,14 +448,104 @@ export class MCPService {
   }
 
   async callTool(serverId: MCPServerId, call: MCPToolCall): Promise<MCPToolResult> {
-    return {
-      id: crypto.randomUUID(),
-      toolCallId: call.id,
-      serverId,
-      success: false,
-      error: 'MCP tool execution not implemented',
-      durationMs: 0,
+    const id = crypto.randomUUID()
+    const start = Date.now()
+
+    const running = this.running.get(serverId)
+    if (!running || running.status !== 'running') {
+      return {
+        id,
+        toolCallId: call.id,
+        serverId,
+        success: false,
+        error: 'Server is not running',
+        durationMs: Date.now() - start,
+      }
     }
+
+    const requestId = this.nextPingId++
+    const request = JSON.stringify({
+      jsonrpc: '2.0',
+      id: requestId,
+      method: 'tools/call',
+      params: {
+        name: call.toolName,
+        arguments: call.arguments,
+      },
+    }) + '\n'
+
+    return new Promise<MCPToolResult>((resolve) => {
+      const timeout = setTimeout(() => {
+        cleanup()
+        resolve({
+          id,
+          toolCallId: call.id,
+          serverId,
+          success: false,
+          error: 'MCP tool call timed out after 30000ms',
+          durationMs: Date.now() - start,
+        })
+      }, 30000)
+
+      let buffer = ''
+      const onData = (chunk: Buffer) => {
+        buffer += chunk.toString('utf8')
+        const lines = buffer.split('\n')
+        buffer = lines.pop() ?? ''
+        for (const line of lines) {
+          if (!line.trim()) continue
+          try {
+            const msg = JSON.parse(line)
+            if (msg.id === requestId) {
+              cleanup()
+              if (msg.error) {
+                resolve({
+                  id,
+                  toolCallId: call.id,
+                  serverId,
+                  success: false,
+                  error: typeof msg.error === 'string' ? msg.error : (msg.error.message ?? JSON.stringify(msg.error)),
+                  durationMs: Date.now() - start,
+                })
+              } else {
+                resolve({
+                  id,
+                  toolCallId: call.id,
+                  serverId,
+                  success: true,
+                  output: msg.result,
+                  durationMs: Date.now() - start,
+                })
+              }
+              return
+            }
+          } catch {
+            // ignore non-JSON lines
+          }
+        }
+      }
+
+      const cleanup = () => {
+        clearTimeout(timeout)
+        running.process.stdout?.off('data', onData)
+      }
+
+      running.process.stdout?.on('data', onData)
+
+      try {
+        running.process.stdin?.write(request)
+      } catch (err) {
+        cleanup()
+        resolve({
+          id,
+          toolCallId: call.id,
+          serverId,
+          success: false,
+          error: `Failed to write to server stdin: ${(err as Error).message}`,
+          durationMs: Date.now() - start,
+        })
+      }
+    })
   }
 
   listServers(): MCPServerConfig[] {

@@ -135,8 +135,44 @@ export class ModelRouter {
   async *route(
     config: ModelConfig,
     messages: AgentMessage[],
+    retryCount: number = 0,
   ): AsyncGenerator<StreamChunk> {
-    yield* this.streamCompletion({ config, messages })
+    // BudgetService guard
+    try {
+      const registry = ServiceRegistry.getInstance()
+      const budget = registry.resolve<any>('BudgetService')
+      const allowed = await budget.checkBudget()
+      if (!allowed) {
+        yield _errorChunk(config.id, 'Budget exceeded')
+        return
+      }
+    } catch {
+      // BudgetService not available — proceed without guard
+    }
+
+    try {
+      yield* this.streamCompletion({ config, messages })
+    } catch (err: any) {
+      const isRetryable =
+        err.status === 429 || err.status === 503 || err.code === 'ECONNRESET'
+      if (isRetryable) {
+        if (retryCount < 3) {
+          const delays = [1000, 3000, 8000]
+          await new Promise((resolve) => setTimeout(resolve, delays[retryCount]))
+          yield* this.route(config, messages, retryCount + 1)
+          return
+        } else {
+          const fallbackConfig: ModelConfig = {
+            ...config,
+            provider: ModelProvider.OPENROUTER,
+            id: 'anthropic/claude-3-5-sonnet',
+          }
+          yield* this.route(fallbackConfig, messages)
+          return
+        }
+      }
+      throw err
+    }
   }
 
   async *streamChat(

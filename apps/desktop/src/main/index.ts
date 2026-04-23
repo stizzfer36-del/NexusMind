@@ -26,6 +26,7 @@ import { LinkService } from './services/LinkService.js'
 import { SyncService } from './services/SyncService.js'
 import { FileService } from './services/FileService.js'
 import { ContextService } from './services/ContextService.js'
+import { BudgetService } from './services/BudgetService.js'
 import { ServiceRegistry, SERVICE_TOKENS } from './ServiceRegistry.js'
 
 const failedServices: string[] = []
@@ -180,6 +181,9 @@ async function bootstrap(): Promise<void> {
   const contextService = new ContextService()
   await safeInit('ContextService', () => contextService.init())
 
+  const budgetService = new BudgetService()
+  await safeInit('BudgetService', () => budgetService.init())
+
   const router = new IPCRouter()
   const allHandlers: Record<string, any> = {
     ...channels,
@@ -201,6 +205,7 @@ async function bootstrap(): Promise<void> {
     ...syncService.getHandlers(),
     ...fileService.getHandlers(),
     ...contextService.getHandlers(),
+    ...budgetService.getHandlers(),
     ...createModelIpcHandlers(modelRouter),
   }
   router.registerAll(allHandlers)

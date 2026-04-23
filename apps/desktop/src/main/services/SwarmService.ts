@@ -10,13 +10,14 @@ import type { MemoryService } from './MemoryService.js'
 import type { EventRecorder } from './EventRecorder.js'
 import type { MCPService } from './MCPService.js'
 import type { LinkService } from './LinkService.js'
+import type { DatabaseService } from './DatabaseService.js'
 import { SwarmGraph, type AgentGraphState } from './SwarmGraph.js'
 
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 
-const AGENT_ROLES = ['coordinator', 'builder', 'reviewer', 'tester', 'docwriter'] as const
+const AGENT_ROLES = ['scout', 'architect', 'coordinator', 'builder', 'reviewer', 'tester', 'docwriter'] as const
 type AgentRole = typeof AGENT_ROLES[number]
 
 const TOOL_INSTRUCTIONS = `
@@ -28,6 +29,8 @@ Available tools: read_file, write_file, list_dir, run_shell, web_fetch, search_m
 `
 
 const ROLE_PROMPTS: Record<AgentRole, string> = {
+  scout:       TOOL_INSTRUCTIONS + 'You are the scout agent. Use list_dir and read_file to map the repository structure. Identify all relevant files for the task. Output a structured file map with ownership notes.',
+  architect:   TOOL_INSTRUCTIONS + 'You are the architect agent. Based on the scout\'s repo map and the task, produce a multi-sprint implementation plan with clear file change ownership per builder agent.',
   coordinator: TOOL_INSTRUCTIONS + 'You are the coordinator agent. Analyze the task and produce a clear, actionable implementation plan.',
   builder:     TOOL_INSTRUCTIONS + 'You are the builder agent. Write clean, working code to implement the described task.',
   reviewer:    TOOL_INSTRUCTIONS + 'You are the reviewer agent. Review the task output for correctness, bugs, and suggest improvements.',
@@ -44,6 +47,8 @@ const DEFAULT_MODEL_CONFIG: ModelConfig = {
   maxTokens: 4_096,
 }
 
+const TOOL_PATTERN = /```tool\s*\n(\{[\s\S]*?\})\s*\n```/g
+
 // ---------------------------------------------------------------------------
 // SwarmService
 // ---------------------------------------------------------------------------
@@ -55,6 +60,29 @@ export class SwarmService {
 
   init(): void {
     ServiceRegistry.getInstance().register(SERVICE_TOKENS.SwarmService, this)
+    this._rehydrateSessions()
+  }
+
+  private _rehydrateSessions(): void {
+    try {
+      const dbService = ServiceRegistry.getInstance().resolve<DatabaseService>(SERVICE_TOKENS.DB)
+      const db = dbService.getDb()
+      const rows = db.prepare(`SELECT * FROM swarm_sessions ORDER BY created_at DESC LIMIT 100`).all() as any[]
+      for (const row of rows) {
+        const session: SwarmSession = {
+          id: row.id,
+          name: row.name,
+          config: JSON.parse(row.config_json),
+          state: JSON.parse(row.state_json),
+          createdAt: row.created_at,
+          updatedAt: row.updated_at,
+        }
+        this.sessions.set(session.id, session)
+      }
+      console.log(`[SwarmService] Rehydrated ${rows.length} sessions from database`)
+    } catch (err) {
+      console.warn('[SwarmService] Failed to rehydrate sessions:', err)
+    }
   }
 
   // -------------------------------------------------------------------------
@@ -93,6 +121,22 @@ export class SwarmService {
     }
     this.sessions.set(session.id, session)
     this.push('swarm:sessionCreated', session)
+    try {
+      const dbService = ServiceRegistry.getInstance().resolve<DatabaseService>(SERVICE_TOKENS.DB)
+      const db = dbService.getDb()
+      db.prepare(
+        `INSERT INTO swarm_sessions (id, name, config_json, state_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`
+      ).run(
+        session.id,
+        session.name,
+        JSON.stringify(session.config),
+        JSON.stringify(session.state),
+        session.createdAt,
+        session.updatedAt,
+      )
+    } catch (err) {
+      console.warn('[SwarmService] Failed to persist session:', err)
+    }
     return session
   }
 
@@ -142,6 +186,8 @@ export class SwarmService {
 
     // Assign one agentId per role
     const agentIds: Record<AgentRole, string> = {
+      scout: crypto.randomUUID(),
+      architect: crypto.randomUUID(),
       coordinator: crypto.randomUUID(),
       builder: crypto.randomUUID(),
       reviewer: crypto.randomUUID(),
@@ -186,7 +232,7 @@ export class SwarmService {
     const graph = new SwarmGraph<AgentGraphState>()
 
     // Add nodes — each calls executeAgentRole for its role
-    const roles: AgentRole[] = ['coordinator', 'builder', 'reviewer', 'tester', 'docwriter']
+    const roles: AgentRole[] = ['scout', 'architect', 'coordinator', 'builder', 'reviewer', 'tester', 'docwriter']
     for (const role of roles) {
       const agentId = agentIds[role]
       graph.addNode({
@@ -199,6 +245,8 @@ export class SwarmService {
     graph.addNode({ id: 'END', execute: async (state) => state })
 
     // Edges
+    graph.addEdge({ from: 'scout', to: 'architect' })
+    graph.addEdge({ from: 'architect', to: 'coordinator' })
     graph.addEdge({ from: 'coordinator', to: 'builder' })
     graph.addEdge({ from: 'builder', to: 'reviewer' })
     graph.addEdge({ from: 'reviewer', to: 'builder', condition: (s) => !s.cancelled && !s.reviewPassed && s.currentRound < s.maxRounds })
@@ -207,7 +255,7 @@ export class SwarmService {
     graph.addEdge({ from: 'tester', to: 'docwriter', condition: (s) => !s.cancelled && s.testPassed })
     graph.addEdge({ from: 'docwriter', to: 'END' })
 
-    graph.setEntry('coordinator')
+    graph.setEntry('scout')
     graph.setEnd(['END'])
 
     // State change callback — update session state and push to renderer
@@ -332,12 +380,28 @@ export class SwarmService {
     try {
       // Build messages array with system prompt + task content
       const systemPrompt = ROLE_PROMPTS[role] ?? ''
+
+      let memoryContext = ''
+      try {
+        const results = memory.search(task.title + ' ' + (task.description ?? ''), 5)
+        if (results.length > 0) {
+          memoryContext =
+            '\n\n## Relevant Past Context (from NexusMemory):\n' +
+            results
+              .slice(0, 5)
+              .map((r, i) => `${i + 1}. ${r.entry.content.slice(0, 300)}`)
+              .join('\n')
+        }
+      } catch (err) {
+        console.warn(`[SwarmService] executeAgentRole(${role}) — memory search failed:`, err)
+      }
+
       const messages: AgentMessage[] = [
         {
           id: crypto.randomUUID(),
           agentId,
           role: SharedAgentRole.USER,
-          content: `${systemPrompt}\n\nTask: ${task.title}\n\n${task.description ?? ''}`,
+          content: `${systemPrompt}${memoryContext}\n\nTask: ${task.title}\n\n${task.description ?? ''}`,
           timestamp: Date.now(),
         },
       ]
@@ -377,7 +441,6 @@ export class SwarmService {
       })
 
       // Parse tool calls with TOOL_PATTERN regex, execute via mcpService if available
-      const TOOL_PATTERN = /```tool\s*\n(\{[\s\S]*?\})\s*\n```/g
       const toolResults: string[] = []
 
       let mcpService: MCPService | null = null
@@ -401,8 +464,16 @@ export class SwarmService {
               console.log(`[SwarmService] ${resultStr}`)
             }
           } catch (err) {
-            console.error(`[SwarmService] Tool call failed:`, err)
-            toolResults.push(`[Tool: error] ${String(err).slice(0, 200)}`)
+            const errorMsg = `Failed to parse tool call JSON for agent ${agentId} (${role}): ${String(err)}`
+            toolResults.push(errorMsg)
+            recorder?.record({
+              sessionId: state.sessionId,
+              type: 'tool:parse-error',
+              nodeId: role,
+              agentId,
+              payload: { rawJson },
+            })
+            console.error(`[SwarmService] Agent ${agentId} (${role}) — tool parse error:`, err, 'rawJson:', rawJson)
           }
         }
       }
@@ -419,7 +490,7 @@ export class SwarmService {
         const fullContent = toolResults.length > 0
           ? `${response}\n\nTools used:\n${toolResults.join('\n')}`
           : response
-        memory.store({
+        await memory.store({
           type: 'episodic',
           content: fullContent,
           source: `${agentId}:${role}`,
@@ -430,9 +501,26 @@ export class SwarmService {
 
       // Role-specific outcome evaluation
       if (role === 'reviewer') {
-        const rejectionKeywords = ['reject', 'incorrect', 'wrong', 'fail', 'bug', 'error', 'broken']
-        const lower = response.toLowerCase()
-        state.reviewPassed = !rejectionKeywords.some((kw) => lower.includes(kw))
+        const verdictPrompt = 'Based on your review above, respond with EXACTLY one word on a new line: APPROVED or REJECTED'
+        try {
+          const verdictMessages = [
+            ...messages,
+            { id: crypto.randomUUID(), agentId, role: SharedAgentRole.ASSISTANT, content: response, timestamp: Date.now() },
+            { id: crypto.randomUUID(), agentId, role: SharedAgentRole.USER, content: verdictPrompt, timestamp: Date.now() },
+          ]
+          let verdictResponse = ''
+          for await (const chunk of modelRouter.route(DEFAULT_MODEL_CONFIG, verdictMessages as AgentMessage[])) {
+            if (chunk.content) {
+              verdictResponse += chunk.content
+            }
+            if (chunk.isDone) break
+          }
+          state.reviewPassed = verdictResponse.trim().toUpperCase().startsWith('APPROVED')
+        } catch {
+          const rejectionKeywords = ['reject', 'incorrect', 'wrong', 'fail', 'bug', 'error', 'broken']
+          const lower = response.toLowerCase()
+          state.reviewPassed = !rejectionKeywords.some((kw) => lower.includes(kw))
+        }
       }
 
       if (role === 'tester') {

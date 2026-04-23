@@ -23,6 +23,31 @@ export class DatabaseService {
 
     runMigrations(this.db)
 
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS swarm_sessions (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        config_json TEXT NOT NULL,
+        state_json TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS replay_events (
+        id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL,
+        type TEXT NOT NULL,
+        node_id TEXT,
+        agent_id TEXT,
+        payload_json TEXT,
+        duration_ms INTEGER,
+        timestamp INTEGER NOT NULL,
+        FOREIGN KEY (session_id) REFERENCES swarm_sessions(id)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_replay_session ON replay_events(session_id, timestamp);
+    `)
+
     ServiceRegistry.getInstance().register(SERVICE_TOKENS.DB, this)
   }
 

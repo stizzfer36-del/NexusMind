@@ -1,6 +1,7 @@
 import crypto from 'crypto'
 import { ServiceRegistry, SERVICE_TOKENS } from '../ServiceRegistry.js'
 import type { DatabaseService } from './DatabaseService.js'
+import type { EmbeddingProvider } from './EmbeddingProvider.js'
 import type { MCPToolDefinition, MCPToolCallResult } from '@nexusmind/shared'
 
 type MemoryType = 'episodic' | 'semantic' | 'procedural' | 'working'
@@ -96,7 +97,7 @@ export class MemoryService {
     registry.register(SERVICE_TOKENS.MemoryService, this)
   }
 
-  store(entry: Omit<MemoryEntry, 'id' | 'createdAt' | 'updatedAt'>): MemoryEntry {
+  async store(entry: Omit<MemoryEntry, 'id' | 'createdAt' | 'updatedAt'>): Promise<MemoryEntry> {
     const id = crypto.randomUUID()
     const now = Date.now()
     const database = this.db.getDb()
@@ -112,7 +113,16 @@ export class MemoryService {
     const tf = computeTF(tokens)
     const idf = computeIDF(corpus)
     const tfidfVec = buildTFIDF(tf, idf)
-    const embeddingJson = JSON.stringify(mapToRecord(tfidfVec))
+    let embeddingJson = JSON.stringify(mapToRecord(tfidfVec))
+
+    // Try semantic embedding provider, fall back to TF-IDF
+    try {
+      const provider = ServiceRegistry.getInstance().resolve<EmbeddingProvider>(SERVICE_TOKENS.EmbeddingProvider)
+      const vector = await provider.embed(entry.content)
+      embeddingJson = JSON.stringify(vector)
+    } catch {
+      // Silently fall back to TF-IDF
+    }
 
     database
       .prepare(
@@ -261,7 +271,7 @@ export class MemoryService {
   }): Promise<MCPToolCallResult> {
     try {
       if (input.store) {
-        this.store({
+        await this.store({
           type: 'semantic',
           content: `${input.store.key}: ${input.store.value}`,
           source: 'mcp',
