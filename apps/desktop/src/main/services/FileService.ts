@@ -99,6 +99,35 @@ export class FileService {
     })
   }
 
+  list(dirPath: string, options?: { recursive?: boolean; includeDirs?: boolean }): { success: boolean; files?: string[]; error?: string } {
+    try {
+      const target = this.resolve(dirPath)
+      const files: string[] = []
+      
+      const walk = (currentPath: string) => {
+        const entries = fs.readdirSync(currentPath, { withFileTypes: true })
+        for (const entry of entries) {
+          const fullPath = path.join(currentPath, entry.name)
+          if (entry.isDirectory()) {
+            if (options?.includeDirs) {
+              files.push(fullPath)
+            }
+            if (options?.recursive !== false) {
+              walk(fullPath)
+            }
+          } else {
+            files.push(fullPath)
+          }
+        }
+      }
+      
+      walk(target)
+      return { success: true, files }
+    } catch (err) {
+      return { success: false, error: String(err) }
+    }
+  }
+
   // -------------------------------------------------------------------------
   // file:applyDiff
   // -------------------------------------------------------------------------
@@ -155,6 +184,7 @@ export class FileService {
       'file:read': (_event: any, filePath: string) => this.read(filePath),
       'file:write': (_event: any, filePath: string, content: string) => this.write(filePath, content),
       'file:listDir': (_event: any, dirPath: string) => this.listDir(dirPath),
+      'file:list': (_event: any, dirPath: string, options?: { recursive?: boolean; includeDirs?: boolean }) => this.list(dirPath, options),
       'file:applyDiff': (_event: any, filePath: string, diff: DiffResult) => this.applyDiff(filePath, diff),
       'file:watch': (_event: any, filePath: string) => this.watch(filePath),
       'file:unwatch': (_event: any, id: string) => this.unwatch(id),

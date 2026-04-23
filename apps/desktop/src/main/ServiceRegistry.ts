@@ -18,6 +18,7 @@ export const SERVICE_TOKENS = {
   FileService: 'FileService',
   ContextService: 'ContextService',
   GitService: Symbol('GitService'),
+  CodebaseIndex: 'CodebaseIndex',
 } as const
 
 export class ServiceRegistry {

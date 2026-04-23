@@ -15,6 +15,9 @@ import { BenchPanel } from '../panels/BenchPanel'
 import { GraphPanel } from '../panels/GraphPanel'
 import { GuardPanel } from '../panels/GuardPanel'
 import { VoicePanel } from '../panels/VoicePanel'
+import { EditorPanel } from '../panels/EditorPanel'
+import { BudgetPanel } from '../panels/BudgetPanel'
+import { SearchPanel } from '../panels/SearchPanel'
 import { OnboardingPanel } from '../panels/OnboardingPanel'
 import { WorkspaceLauncherPanel } from '../panels/WorkspaceLauncherPanel/WorkspaceLauncherPanel'
 import { useWorkspaceStore } from '../stores/workspaceStore'
@@ -71,6 +74,8 @@ class ShellErrorBoundary extends React.Component<
 }
 
 const PANELS: Record<Route, React.ReactNode> = {
+  editor: <ErrorBoundary panelName="Editor"><EditorPanel /></ErrorBoundary>,
+  search: <ErrorBoundary panelName="Search"><SearchPanel /></ErrorBoundary>,
   terminal: <ErrorBoundary panelName="Terminal"><TerminalPanel /></ErrorBoundary>,
   kanban: <ErrorBoundary panelName="Kanban"><KanbanPanel /></ErrorBoundary>,
   swarm: <ErrorBoundary panelName="Swarm"><SwarmPanel /></ErrorBoundary>,
@@ -88,6 +93,7 @@ const PANELS: Record<Route, React.ReactNode> = {
   graph: <ErrorBoundary panelName="Graph"><GraphPanel /></ErrorBoundary>,
   guard: <ErrorBoundary panelName="Guard"><GuardPanel /></ErrorBoundary>,
   voice: <ErrorBoundary panelName="Voice"><VoicePanel /></ErrorBoundary>,
+  budget: <ErrorBoundary panelName="Budget"><BudgetPanel /></ErrorBoundary>,
 }
 
 function LauncherGate({ children }: { children: React.ReactNode }) {

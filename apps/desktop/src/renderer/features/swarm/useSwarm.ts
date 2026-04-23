@@ -1,7 +1,25 @@
-import { useEffect, useCallback } from 'react'
+import { useEffect, useCallback, useMemo } from 'react'
 import { useIPC, useIPCEvent } from '../../hooks'
 import { useSwarmStore } from '../../stores/swarm.store'
+import { SwarmStatus } from '@nexusmind/shared'
 import type { SwarmState, SwarmSession, AgentInfo } from '@nexusmind/shared'
+import type { SwarmNodeStatus } from '../../stores/swarm.store'
+
+const PIPELINE_ORDER = ['scout', 'architect', 'coordinator', 'builder', 'reviewer', 'tester', 'docwriter'] as const
+
+function getNodeStatus(role: string, sessionStatus: SwarmStatus, activeNode: string | null, nodeStates: Record<string, { status: SwarmNodeStatus }>): SwarmNodeStatus {
+  const nodeState = nodeStates[role]
+  if (nodeState && nodeState.status !== 'idle') return nodeState.status
+  if (sessionStatus === SwarmStatus.COMPLETED) return 'completed'
+  if (sessionStatus === SwarmStatus.FAILED) return 'failed'
+  if (sessionStatus === SwarmStatus.IDLE) return 'idle'
+  if (activeNode === role) return 'running'
+  const roleIndex = PIPELINE_ORDER.indexOf(role as typeof PIPELINE_ORDER[number])
+  const activeIndex = PIPELINE_ORDER.indexOf(activeNode as typeof PIPELINE_ORDER[number])
+  if (activeIndex >= 0 && roleIndex >= 0 && roleIndex < activeIndex) return 'completed'
+  if (activeIndex >= 0 && roleIndex >= 0 && roleIndex > activeIndex) return 'waiting'
+  return 'idle'
+}
 
 export function useSwarm() {
   const store = useSwarmStore()
@@ -35,35 +53,83 @@ export function useSwarm() {
     }
   }, [listIPC, store])
 
-  // Load agents on mount and whenever sessions change
   useEffect(() => {
     fetchAgents()
   }, [fetchAgents, store.sessions.length])
 
-  // Load sessions on mount
   useEffect(() => {
     fetchSessions()
   }, [fetchSessions])
 
-  // Listen for real-time swarm updates
   useIPCEvent('swarm:update', useCallback((payload: SwarmState & { id?: string; activeNode?: string }) => {
-    const { id, activeNode: _activeNode, ...state } = payload
+    const { id, activeNode, ...state } = payload
     if (!id) return
+
     store.updateSession(id, (s) => ({
       ...s,
       state: { ...s.state, ...state },
       updatedAt: Date.now(),
     }))
-    // Re-fetch agents when state changes since agent statuses may have changed
+
+    if (activeNode) {
+      store.setActiveNode(activeNode)
+      store.setNodeState(activeNode, {
+        status: 'running',
+        startedAt: Date.now(),
+      })
+      for (const prevRole of PIPELINE_ORDER) {
+        if (prevRole === activeNode) break
+        const prev = store.nodeStates[prevRole]
+        if (prev && prev.status === 'running') {
+          store.setNodeState(prevRole, {
+            status: 'completed',
+            completedAt: Date.now(),
+          })
+        }
+      }
+    }
+
+    if (state.status === SwarmStatus.COMPLETED) {
+      store.setActiveNode(null)
+      for (const role of PIPELINE_ORDER) {
+        store.setNodeState(role, { status: 'completed', completedAt: Date.now() })
+      }
+    } else if (state.status === SwarmStatus.FAILED) {
+      store.setActiveNode(null)
+      for (const role of PIPELINE_ORDER) {
+        const ns = store.nodeStates[role]
+        if (ns.status === 'running') {
+          store.setNodeState(role, { status: 'failed', completedAt: Date.now() })
+        }
+      }
+    } else if (state.status === SwarmStatus.IDLE) {
+      store.resetGraphState()
+    }
+
     fetchAgents()
   }, [store, fetchAgents]))
 
-  // Listen for newly created sessions
   useIPCEvent('swarm:sessionCreated', useCallback((session: SwarmSession) => {
     store.addSession(session)
     store.setSelectedSessionId(session.id)
+    store.resetGraphState()
     fetchAgents()
   }, [store, fetchAgents]))
+
+  const computedNodeStatuses = useMemo(() => {
+    const selectedSession = store.sessions.find(s => s.id === store.selectedSessionId)
+    if (!selectedSession) return store.nodeStates
+
+    const result: Record<string, typeof store.nodeStates[string]> = {}
+    for (const role of PIPELINE_ORDER) {
+      const base = store.nodeStates[role] || { role, status: 'idle' as SwarmNodeStatus, output: '', fileLocks: [], agentId: '', startedAt: null, completedAt: null }
+      result[role] = {
+        ...base,
+        status: getNodeStatus(role, selectedSession.state.status, store.activeNode, store.nodeStates),
+      }
+    }
+    return result
+  }, [store.sessions, store.selectedSessionId, store.activeNode, store.nodeStates])
 
   return {
     sessions: store.sessions,
@@ -73,5 +139,10 @@ export function useSwarm() {
     agentsError: store.agentsError,
     setSelectedSessionId: store.setSelectedSessionId,
     refreshAgents: fetchAgents,
+    activeNode: store.activeNode,
+    nodeStates: computedNodeStatuses,
+    edgeMessages: store.edgeMessages,
+    selectedNodeId: store.selectedNodeId,
+    setSelectedNodeId: store.setSelectedNodeId,
   }
 }

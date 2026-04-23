@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react'
+import React, { useCallback, useState, useEffect } from 'react'
 import { useMemory } from '../../features/memory/useMemory'
 import type { MemoryType } from '@nexusmind/shared'
 import styles from './MemoryPanel.module.css'
@@ -47,12 +47,56 @@ function relativeTime(ts: number): string {
 export function MemoryPanel() {
   const memory = useMemory()
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [rulesContent, setRulesContent] = useState('')
+  const [rulesModified, setRulesModified] = useState(false)
+  const [activeTab, setActiveTab] = useState<'memories' | 'rules'>('memories')
+  const [memoryStats, setMemoryStats] = useState({ count: 0, types: {} as Record<string, number> })
+
+  useEffect(() => {
+    loadRulesFile()
+    loadMemoryStats()
+  }, [])
+
+  const loadRulesFile = async () => {
+    try {
+      const result = await window.electronAPI.invoke('file:read', '.nexusrules')
+      if (result.success) {
+        setRulesContent(result.content)
+        setRulesModified(false)
+      }
+    } catch {
+      setRulesContent('# NexusMind Project Rules\n\n# Add project-specific instructions here\n# These rules are automatically loaded into every AI session\n\n# Example:\n# - Use TypeScript strict mode\n# - Follow conventional commits\n# - Write tests for all new features\n')
+    }
+  }
+
+  const loadMemoryStats = async () => {
+    try {
+      const allMemories = await window.electronAPI.invoke('memory:list')
+      const types = allMemories.reduce((acc: Record<string, number>, m: any) => {
+        acc[m.type] = (acc[m.type] || 0) + 1
+        return acc
+      }, {})
+      setMemoryStats({ count: allMemories.length, types })
+    } catch (err) {
+      console.error('Failed to load memory stats:', err)
+    }
+  }
+
+  const saveRulesFile = async () => {
+    try {
+      await window.electronAPI.invoke('file:write', '.nexusrules', rulesContent)
+      setRulesModified(false)
+    } catch (err) {
+      console.error('Failed to save rules:', err)
+    }
+  }
 
   const handleDelete = useCallback(async (id: string, e: React.MouseEvent) => {
     e.stopPropagation()
     try {
       await memory.deleteEntry(id)
       if (expandedId === id) setExpandedId(null)
+      loadMemoryStats()
     } catch (err) {
       console.error('Failed to delete memory:', err)
     }
@@ -62,8 +106,80 @@ export function MemoryPanel() {
 
   return (
     <div className={styles.root}>
-      {/* Search bar + filters */}
-      <div className={styles.searchArea}>
+      <div className={styles.header}>
+        <div className={styles.headerContent}>
+          <h2>NexusMemory</h2>
+          <p className={styles.subtitle}>Persistent memory across sessions — the anti-Cursor advantage</p>
+        </div>
+        <div className={styles.stats}>
+          <div className={styles.stat}>
+            <span className={styles.statValue}>{memoryStats.count}</span>
+            <span className={styles.statLabel}>memories</span>
+          </div>
+          {Object.entries(memoryStats.types).map(([type, count]) => (
+            <div key={type} className={styles.stat}>
+              <span className={styles.statValue} style={{ color: TYPE_COLORS[type as MemoryType] }}>{count}</span>
+              <span className={styles.statLabel}>{type}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className={styles.tabs}>
+        <button
+          className={`${styles.tab} ${activeTab === 'memories' ? styles.tabActive : ''}`}
+          onClick={() => setActiveTab('memories')}
+        >
+          Memories
+        </button>
+        <button
+          className={`${styles.tab} ${activeTab === 'rules' ? styles.tabActive : ''}`}
+          onClick={() => setActiveTab('rules')}
+        >
+          .nexusrules
+        </button>
+      </div>
+
+      {activeTab === 'rules' ? (
+        <div className={styles.rulesPanel}>
+          <div className={styles.rulesHeader}>
+            <div>
+              <h3>Project Rules</h3>
+              <p className={styles.rulesSubtitle}>
+                These rules are automatically loaded into every AI session. 
+                Define coding standards, patterns, and conventions here.
+              </p>
+            </div>
+            <div className={styles.rulesActions}>
+              {rulesModified && <span className={styles.modifiedIndicator}>Modified</span>}
+              <button 
+                className={styles.saveBtn} 
+                onClick={saveRulesFile}
+                disabled={!rulesModified}
+              >
+                Save Rules
+              </button>
+            </div>
+          </div>
+          <textarea
+            className={styles.rulesEditor}
+            value={rulesContent}
+            onChange={(e) => { setRulesContent(e.target.value); setRulesModified(true); }}
+            spellCheck={false}
+          />
+          <div className={styles.rulesHelp}>
+            <h4>Why .nexusrules matters (vs Cursor's context rot):</h4>
+            <ul>
+              <li><strong>Persistent across sessions</strong> — Unlike Cursor, agents remember these rules forever</li>
+              <li><strong>Project-specific</strong> — Each repo can have its own coding standards</li>
+              <li><strong>Auto-loaded</strong> — Every new chat starts with full context</li>
+              <li><strong>No priming needed</strong> — No more "reminding the AI" every session</li>
+            </ul>
+          </div>
+        </div>
+      ) : (
+        <>
+          <div className={styles.searchArea}>
         <div className={styles.searchRow}>
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className={styles.searchIcon}>
             <circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.3"/>
@@ -202,6 +318,18 @@ export function MemoryPanel() {
           })
         )}
       </div>
+          <div className={styles.contextRotBanner}>
+            <div className={styles.bannerIcon}>🧠</div>
+            <div className={styles.bannerContent}>
+              <h4>Solving Cursor's "Context Rot" Problem</h4>
+              <p>
+                Cursor users report AI forgetting decisions after 30 prompts. NexusMind's persistent memory 
+                stores every architectural decision, pattern, and convention — automatically retrieved in every session.
+              </p>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   )
 }

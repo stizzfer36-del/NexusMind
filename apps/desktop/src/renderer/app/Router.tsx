@@ -1,8 +1,8 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react'
 
-export type Route = 'terminal' | 'kanban' | 'swarm' | 'memory' | 'replay' | 'settings' | 'bench' | 'graph' | 'guard' | 'voice' | 'agent'
+export type Route = 'editor' | 'search' | 'terminal' | 'kanban' | 'swarm' | 'memory' | 'replay' | 'settings' | 'bench' | 'graph' | 'guard' | 'voice' | 'agent' | 'budget'
 
-const VALID_ROUTES: Route[] = ['terminal', 'kanban', 'swarm', 'memory', 'replay', 'settings', 'bench', 'graph', 'guard', 'voice', 'agent']
+const VALID_ROUTES: Route[] = ['editor', 'search', 'terminal', 'kanban', 'swarm', 'memory', 'replay', 'settings', 'bench', 'graph', 'guard', 'voice', 'agent', 'budget']
 const DEFAULT_ROUTE: Route = 'terminal'
 
 function parseHash(): Route {

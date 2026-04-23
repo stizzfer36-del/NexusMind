@@ -12,6 +12,17 @@ export interface BudgetConfig {
   sessionLimitUSD?: number
 }
 
+interface CostEvent {
+  id: string
+  sessionId: string
+  provider: string
+  modelId: string
+  inputTokens: number
+  outputTokens: number
+  estimatedCostUSD: number
+  timestamp: number
+}
+
 interface PricingEntry {
   inputPer1M: number
   outputPer1M: number
@@ -169,14 +180,35 @@ export class BudgetService {
     return inputCost + outputCost
   }
 
+  getRecentCosts(limit: number = 50): CostEvent[] {
+    const rows = this.db.getDb().prepare(`
+      SELECT * FROM cost_events
+      ORDER BY timestamp DESC
+      LIMIT ?
+    `).all(limit) as any[]
+
+    return rows.map(row => ({
+      id: row.id,
+      sessionId: row.session_id,
+      provider: row.provider,
+      modelId: row.model_id,
+      inputTokens: row.input_tokens,
+      outputTokens: row.output_tokens,
+      estimatedCostUSD: row.estimated_cost_usd,
+      timestamp: row.timestamp,
+    }))
+  }
+
   getHandlers(): Record<string, (event: any, ...args: any[]) => any> {
     return {
       'budget:check': (_event: any, sessionId?: string) => this.checkBudget(sessionId),
+      'budget:getConfig': () => this.getConfig(),
       'budget:setConfig': (_event: any, config: BudgetConfig) => {
         this.setConfig(config)
         return this.getConfig()
       },
       'budget:getDailySpend': () => this.getDailySpend(),
+      'budget:getRecentCosts': (_event: any, limit?: number) => this.getRecentCosts(limit),
     }
   }
 }

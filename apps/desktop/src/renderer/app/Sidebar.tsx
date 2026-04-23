@@ -10,6 +10,14 @@ interface NavItem {
 }
 
 // Inline SVG icons — no external library
+const EditorIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+    <rect x="1.5" y="1.5" width="13" height="13" rx="2" stroke="currentColor" strokeWidth="1.2"/>
+    <path d="M4 6l3 2-3 2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+    <line x1="9" y1="10" x2="12" y2="10" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+  </svg>
+)
+
 const TerminalIcon = () => (
   <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
     <rect x="1.5" y="1.5" width="13" height="13" rx="2" stroke="currentColor" strokeWidth="1.2"/>
@@ -107,13 +115,30 @@ const CollapseIcon = ({ collapsed }: { collapsed: boolean }) => (
   </svg>
 )
 
+const DollarIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+    <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.2"/>
+    <path d="M8 4.5v7M6 6h4M6 10h4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+  </svg>
+)
+
+const SearchIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+    <circle cx="7" cy="7" r="5.5" stroke="currentColor" strokeWidth="1.2"/>
+    <line x1="11" y1="11" x2="15" y2="15" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+  </svg>
+)
+
 const NAV_ITEMS: NavItem[] = [
+  { route: 'editor', label: 'Editor', shortcut: '⌘E', icon: <EditorIcon /> },
+  { route: 'search', label: 'Search', shortcut: '⌘⇧F', icon: <SearchIcon /> },
   { route: 'terminal', label: 'Terminal', shortcut: '⌘1', icon: <TerminalIcon /> },
   { route: 'kanban', label: 'Kanban', shortcut: '⌘2', icon: <KanbanIcon /> },
   { route: 'swarm', label: 'Swarm', shortcut: '⌘3', icon: <SwarmIcon /> },
   { route: 'agent', label: 'Agent', shortcut: '⌘4', icon: <AgentIcon /> },
   { route: 'memory', label: 'Memory', shortcut: '⌘5', icon: <MemoryIcon /> },
   { route: 'replay', label: 'Replay', shortcut: '⌘6', icon: <ReplayIcon /> },
+  { route: 'budget', label: 'Budget', shortcut: '⌘$', icon: <DollarIcon /> },
   { route: 'bench', label: 'Bench', shortcut: '⌘B', icon: <BenchIcon /> },
   { route: 'graph', label: 'Graph', shortcut: '⌘G', icon: <GraphIcon /> },
   { route: 'guard', label: 'Guard', shortcut: '⌘⇧G', icon: <ShieldIcon /> },

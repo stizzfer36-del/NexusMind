@@ -8,6 +8,11 @@ import type {
   GuardFinding,
   GuardRun,
   GuardPolicy,
+  FixSuggestion,
+  GuardTrendPoint,
+  PreCommitResult,
+  SarifReport,
+  SecurityScore,
   MCPServerConfig,
   MCPServerId,
   MCPTool,
@@ -153,6 +158,12 @@ export interface IpcEvents {
   'guard:getPolicy': () => GuardPolicy
   'guard:setPolicy': (policy: GuardPolicy) => void
   'guard:approvalResponse': (payload: { requestId: string; approved: boolean }) => void
+  'guard:getSecurityScore': () => SecurityScore
+  'guard:getTrends': () => GuardTrendPoint[]
+  'guard:exportSarif': (runId?: string) => SarifReport
+  'guard:fixSuggestion': (findingId: string) => FixSuggestion | null
+  'guard:scanFile': (filePath: string) => GuardFinding[]
+  'guard:preCommitCheck': () => PreCommitResult
 
   // bench
   'bench:listTasks': (dimension?: BenchDimension) => BenchTask[]
@@ -245,6 +256,8 @@ export interface IpcRendererEvents {
   'guard:progress': (payload: { scanner: string; status: string; findings: GuardFinding[] }) => void
   'guard:complete': (payload: { runId: string; findings: GuardFinding[] }) => void
   'guard:requestApproval': (payload: { requestId: string; action: string; reason: string; severity: string }) => void
+  'guard:fileScanResult': (payload: { filePath: string; findings: GuardFinding[] }) => void
+  'guard:preCommitResult': (payload: PreCommitResult) => void
 
   // bench
   'bench:progress': (payload: { reportId: string; progress: number }) => void

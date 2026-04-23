@@ -310,3 +310,170 @@
   text-transform: capitalize;
   opacity: 0.85;
 }
+
+.tabs {
+  display: flex;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.tab {
+  padding: var(--space-3, 12px) var(--space-4, 16px);
+  font-size: var(--font-size-sm, 12px);
+  font-weight: var(--font-weight-medium, 500);
+  color: var(--color-text-muted);
+  border-bottom: 2px solid transparent;
+  transition: all var(--transition-fast, 80ms);
+}
+
+.tab:hover {
+  color: var(--color-text);
+  background: var(--color-surface-2, #1a1a1a);
+}
+
+.tabActive {
+  color: var(--color-accent);
+  border-bottom-color: var(--color-accent);
+}
+
+.rulesPanel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-4, 16px);
+  overflow-y: auto;
+}
+
+.rulesHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: var(--space-3, 12px);
+}
+
+.rulesHeader h3 {
+  margin: 0 0 4px 0;
+  font-size: var(--font-size-md, 14px);
+  font-weight: var(--font-weight-semibold, 600);
+}
+
+.rulesSubtitle {
+  margin: 0;
+  font-size: var(--font-size-sm, 12px);
+  color: var(--color-text-muted);
+}
+
+.rulesActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2, 8px);
+}
+
+.modifiedIndicator {
+  font-size: var(--font-size-xs, 11px);
+  color: var(--color-yellow);
+  font-style: italic;
+}
+
+.saveBtn {
+  background: var(--color-green);
+  border: none;
+  border-radius: var(--radius-md, 6px);
+  padding: 6px 12px;
+  font-size: var(--font-size-sm, 12px);
+  font-weight: var(--font-weight-medium, 500);
+  color: white;
+  cursor: pointer;
+  transition: background var(--transition-fast, 80ms);
+}
+
+.saveBtn:hover:not(:disabled) {
+  background: var(--color-green-hover, #16a34a);
+}
+
+.saveBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.rulesEditor {
+  flex: 1;
+  min-height: 300px;
+  background: var(--color-surface-2, #1a1a1a);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md, 6px);
+  padding: var(--space-3, 12px);
+  font-family: var(--font-mono, monospace);
+  font-size: var(--font-size-sm, 12px);
+  line-height: 1.6;
+  color: var(--color-text);
+  resize: none;
+  outline: none;
+}
+
+.rulesEditor:focus {
+  border-color: var(--color-accent);
+}
+
+.rulesHelp {
+  margin-top: var(--space-4, 16px);
+  padding: var(--space-3, 12px);
+  background: rgba(124, 106, 247, 0.1);
+  border: 1px solid rgba(124, 106, 247, 0.3);
+  border-radius: var(--radius-md, 6px);
+}
+
+.rulesHelp h4 {
+  margin: 0 0 var(--space-2, 8px) 0;
+  font-size: var(--font-size-sm, 12px);
+  font-weight: var(--font-weight-semibold, 600);
+  color: var(--color-accent);
+}
+
+.rulesHelp ul {
+  margin: 0;
+  padding-left: 16px;
+}
+
+.rulesHelp li {
+  margin-bottom: 4px;
+  font-size: var(--font-size-sm, 12px);
+  color: var(--color-text-secondary, #999);
+}
+
+.rulesHelp li:last-child {
+  margin-bottom: 0;
+}
+
+.rulesHelp strong {
+  color: var(--color-text);
+}
+
+.contextRotBanner {
+  display: flex;
+  gap: var(--space-3, 12px);
+  padding: var(--space-4, 16px);
+  background: linear-gradient(135deg, rgba(124, 106, 247, 0.1), rgba(78, 201, 176, 0.1));
+  border: 1px solid rgba(124, 106, 247, 0.3);
+  border-radius: var(--radius-md, 6px);
+  margin-top: var(--space-3, 12px);
+}
+
+.bannerIcon {
+  font-size: 24px;
+  flex-shrink: 0;
+}
+
+.bannerContent h4 {
+  margin: 0 0 4px 0;
+  font-size: var(--font-size-sm, 12px);
+  font-weight: var(--font-weight-semibold, 600);
+  color: var(--color-accent);
+}
+
+.bannerContent p {
+  margin: 0;
+  font-size: var(--font-size-sm, 12px);
+  color: var(--color-text-secondary, #999);
+  line-height: 1.5;
+}
