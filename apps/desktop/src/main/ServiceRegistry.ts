@@ -22,6 +22,7 @@ export const SERVICE_TOKENS = {
 export class ServiceRegistry {
   private static instance: ServiceRegistry | null = null
   private readonly services = new Map<string, unknown>()
+  private readonly lazyServices = new Map<string, () => unknown | Promise<unknown>>()
 
   private constructor() {}
 
@@ -36,6 +37,10 @@ export class ServiceRegistry {
     this.services.set(token, instance)
   }
 
+  registerLazy<T>(token: string, factory: () => T | Promise<T>): void {
+    this.lazyServices.set(token, factory)
+  }
+
   resolve<T>(token: string): T {
     if (!this.services.has(token)) {
       throw new Error(`Service not registered: ${token}`)
@@ -43,11 +48,25 @@ export class ServiceRegistry {
     return this.services.get(token) as T
   }
 
+  async resolveLazy<T>(token: string): Promise<T> {
+    if (this.services.has(token)) {
+      return this.services.get(token) as T
+    }
+    if (!this.lazyServices.has(token)) {
+      throw new Error(`Service not registered: ${token}`)
+    }
+    const factory = this.lazyServices.get(token)!
+    const instance = await factory()
+    this.services.set(token, instance)
+    return instance as T
+  }
+
   has(token: string): boolean {
-    return this.services.has(token)
+    return this.services.has(token) || this.lazyServices.has(token)
   }
 
   clear(): void {
     this.services.clear()
+    this.lazyServices.clear()
   }
 }

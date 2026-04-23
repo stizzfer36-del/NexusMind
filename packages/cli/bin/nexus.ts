@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import type { SwarmRunArgs, GraphRunArgs, BenchRunArgs, GuardRunArgs } from '@nexusmind/shared'
-import { runSwarm, runGraph, runBench, runGuard, startRepl } from '../src/NexusCliRunner'
+import { runSwarm, runGraph, runBench, runGuard, startRepl, openNexusMind, getVersion } from '../src/NexusCliRunner'
 
 function printHelp(): void {
   console.log(`
@@ -14,6 +14,7 @@ Commands:
   run-graph    Execute a saved workflow DAG
   run-bench    Run benchmark tasks against a model
   run-guard    Run security guard scan
+  nexusmind    Open NexusMind desktop app at a path
   repl         Start interactive REPL
   help         Show this help
 
@@ -31,19 +32,27 @@ Options for run-bench:
   --modelId <id>        Model to benchmark
   --sampleSize <n>      Number of tasks (default: 3)
 
+Options for nexusmind:
+  <path>                Directory to open (default: .)
+  --version             Print version and exit
+
 Environment variables:
   ANTHROPIC_API_KEY     API key for LLM calls
   NEXUS_DB_PATH         Path to NexusMind SQLite database
 `)
 }
 
-function parseArgs(argv: string[]): { command: string; flags: Record<string, string | number | boolean> } {
+function parseArgs(argv: string[]): { command: string; flags: Record<string, string | number | boolean>; positional: string[] } {
   const command = argv[0] ?? ''
   const flags: Record<string, string | number | boolean> = {}
+  const positional: string[] = []
 
   for (let i = 1; i < argv.length; i++) {
     const arg = argv[i]
-    if (!arg.startsWith('--')) continue
+    if (!arg.startsWith('--')) {
+      positional.push(arg)
+      continue
+    }
     const key = arg.slice(2)
     const valueParts: string[] = []
     let j = i + 1
@@ -61,7 +70,7 @@ function parseArgs(argv: string[]): { command: string; flags: Record<string, str
     i = j - 1
   }
 
-  return { command, flags }
+  return { command, flags, positional }
 }
 
 async function main(): Promise<void> {
@@ -71,7 +80,17 @@ async function main(): Promise<void> {
     return
   }
 
-  const { command, flags } = parseArgs(argv)
+  if (argv[0] === '--version' || argv[0] === '-v') {
+    console.log(getVersion())
+    return
+  }
+
+  const { command, flags, positional } = parseArgs(argv)
+
+  if (flags.version) {
+    console.log(getVersion())
+    return
+  }
 
   switch (command) {
     case 'run-swarm': {
@@ -129,6 +148,12 @@ async function main(): Promise<void> {
         console.error('Error:', result.message)
         process.exit(1)
       }
+      break
+    }
+
+    case 'nexusmind': {
+      const targetPath = positional[0] ?? '.'
+      openNexusMind(targetPath)
       break
     }
 

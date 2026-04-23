@@ -1,4 +1,5 @@
 import { app, Menu, dialog, ipcMain } from 'electron'
+import { autoUpdater } from 'electron-updater'
 import fs from 'fs'
 import path from 'path'
 import os from 'os'
@@ -25,6 +26,7 @@ import { LinkService } from './services/LinkService.js'
 import { SyncService } from './services/SyncService.js'
 import { FileService } from './services/FileService.js'
 import { ContextService } from './services/ContextService.js'
+import { ServiceRegistry, SERVICE_TOKENS } from './ServiceRegistry.js'
 
 const failedServices: string[] = []
 
@@ -38,12 +40,80 @@ async function safeInit(name: string, fn: () => void | Promise<void>): Promise<v
 }
 
 function setupAutoUpdater(): void {
-  // TODO(P14): install electron-updater and configure a publish provider before enabling.
-  // Example: import { autoUpdater } from 'electron-updater'
-  //          if (app.isPackaged) autoUpdater.checkForUpdatesAndNotify()
+  const crashLogDir = path.join(os.homedir(), '.nexusmind')
+  const crashLogPath = path.join(crashLogDir, 'crash.log')
+
+  function logToCrash(message: string): void {
+    try {
+      if (!fs.existsSync(crashLogDir)) {
+        fs.mkdirSync(crashLogDir, { recursive: true })
+      }
+      fs.appendFileSync(crashLogPath, `[updater] ${new Date().toISOString()} ${message}\n`, 'utf8')
+    } catch {
+      // ignore logging errors
+    }
+  }
+
+  function pushToRenderer(channel: string, payload: unknown): void {
+    const win = WindowManager.getInstance().get('main')
+    if (win && !win.isDestroyed()) {
+      win.webContents.send(channel, payload)
+    }
+  }
+
+  autoUpdater.on('update-available', (info) => {
+    console.log('[updater] Update available:', info.version)
+    logToCrash(`update-available: ${info.version}`)
+    pushToRenderer('updater:available', {
+      version: info.version,
+      releaseNotes: info.releaseNotes ?? undefined,
+    })
+  })
+
+  autoUpdater.on('update-downloaded', (info) => {
+    console.log('[updater] Update downloaded:', info.version)
+    logToCrash(`update-downloaded: ${info.version}`)
+    pushToRenderer('updater:ready', { version: info.version })
+  })
+
+  autoUpdater.on('error', (err) => {
+    console.error('[updater] Error:', err.message)
+    logToCrash(`error: ${err.message}`)
+    pushToRenderer('updater:error', { message: err.message })
+  })
+
+  ipcMain.handle('updater:install', () => {
+    console.log('[updater] Quit and install triggered')
+    autoUpdater.quitAndInstall()
+  })
+
+  if (app.isPackaged) {
+    autoUpdater.checkForUpdatesAndNotify().catch((err) => {
+      console.error('[updater] checkForUpdatesAndNotify failed:', err.message)
+      logToCrash(`checkForUpdatesAndNotify failed: ${err.message}`)
+    })
+  }
+}
+
+async function initLazyServices(): Promise<void> {
+  const registry = ServiceRegistry.getInstance()
+  await safeInit('EventRecorder', async () => {
+    await registry.resolveLazy(SERVICE_TOKENS.EventRecorder)
+  })
+  await safeInit('BenchService', async () => {
+    await registry.resolveLazy(SERVICE_TOKENS.BenchService)
+  })
+  await safeInit('VoiceService', async () => {
+    await registry.resolveLazy(SERVICE_TOKENS.VoiceService)
+  })
+  await safeInit('SyncService', async () => {
+    await registry.resolveLazy(SERVICE_TOKENS.SyncService)
+  })
 }
 
 async function bootstrap(): Promise<void> {
+  const registry = ServiceRegistry.getInstance()
+
   const db = new DatabaseService()
   await safeInit('DatabaseService', () => db.init())
 
@@ -68,14 +138,20 @@ async function bootstrap(): Promise<void> {
   const swarm = new SwarmService()
   await safeInit('SwarmService', () => swarm.init())
 
-  const mcp = new MCPService()
+  const mcp = new MCPService(memory)
   await safeInit('MCPService', () => mcp.init())
 
   const eventRecorder = new EventRecorder()
-  await safeInit('EventRecorder', () => eventRecorder.init())
+  registry.registerLazy(SERVICE_TOKENS.EventRecorder, async () => {
+    await eventRecorder.init()
+    return eventRecorder
+  })
 
   const bench = new BenchService()
-  await safeInit('BenchService', () => bench.init())
+  registry.registerLazy(SERVICE_TOKENS.BenchService, async () => {
+    await bench.init()
+    return bench
+  })
 
   const graphService = new GraphService()
   await safeInit('GraphService', () => graphService.init())
@@ -84,13 +160,19 @@ async function bootstrap(): Promise<void> {
   await safeInit('GuardService', () => guardService.init())
 
   const voiceService = new VoiceService()
-  await safeInit('VoiceService', () => voiceService.init())
+  registry.registerLazy(SERVICE_TOKENS.VoiceService, async () => {
+    await voiceService.init()
+    return voiceService
+  })
 
   const linkService = new LinkService()
   await safeInit('LinkService', () => linkService.init())
 
   const syncService = new SyncService()
-  await safeInit('SyncService', () => syncService.init())
+  registry.registerLazy(SERVICE_TOKENS.SyncService, async () => {
+    await syncService.init()
+    return syncService
+  })
 
   const fileService = new FileService()
   await safeInit('FileService', () => fileService.init())
@@ -157,17 +239,20 @@ async function bootstrap(): Promise<void> {
   console.log('[bootstrap] opening main window')
   createMainWindow()
 
-  // Broadcast service health to renderer once it loads
+  // Broadcast service health to renderer once it loads, and init lazy services
   const mainWin = WindowManager.getInstance().get('main')
   if (mainWin) {
-    const broadcastHealth = () => {
+    const onDidFinishLoad = async () => {
       if (mainWin.isDestroyed()) return
+      await initLazyServices()
       mainWin.webContents.send('app:serviceHealth', { failed: failedServices })
     }
     if (mainWin.webContents.isLoading()) {
-      mainWin.webContents.once('did-finish-load', broadcastHealth)
+      mainWin.webContents.once('did-finish-load', () => {
+        onDidFinishLoad().catch(console.error)
+      })
     } else {
-      broadcastHealth()
+      onDidFinishLoad().catch(console.error)
     }
   }
 

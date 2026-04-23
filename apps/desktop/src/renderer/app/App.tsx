@@ -16,6 +16,8 @@ import { GraphPanel } from '../panels/GraphPanel'
 import { GuardPanel } from '../panels/GuardPanel'
 import { VoicePanel } from '../panels/VoicePanel'
 import { OnboardingPanel } from '../panels/OnboardingPanel'
+import { WorkspaceLauncherPanel } from '../panels/WorkspaceLauncherPanel/WorkspaceLauncherPanel'
+import { useWorkspaceStore } from '../stores/workspaceStore'
 import { ErrorBoundary } from '../components/ErrorBoundary'
 import { GuardApprovalOverlay } from '../components/GuardApprovalOverlay'
 
@@ -88,6 +90,14 @@ const PANELS: Record<Route, React.ReactNode> = {
   voice: <ErrorBoundary panelName="Voice"><VoicePanel /></ErrorBoundary>,
 }
 
+function LauncherGate({ children }: { children: React.ReactNode }) {
+  const { hasLaunched } = useWorkspaceStore()
+  if (!hasLaunched) {
+    return <WorkspaceLauncherPanel />
+  }
+  return <>{children}</>
+}
+
 function AppShell() {
   const route = useRoute()
   const navigate = useNavigate()
@@ -135,7 +145,9 @@ export function App() {
   return (
     <ShellErrorBoundary>
       <RouterProvider>
-        <AppShell />
+        <LauncherGate>
+          <AppShell />
+        </LauncherGate>
       </RouterProvider>
     </ShellErrorBoundary>
   )

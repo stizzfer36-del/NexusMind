@@ -1,4 +1,5 @@
-import { execSync } from 'child_process'
+import { execSync, spawn } from 'child_process'
+import fs from 'fs'
 import os from 'os'
 import path from 'path'
 import type { SwarmRunArgs, GraphRunArgs, BenchRunArgs, GuardRunArgs, CLIResult } from '@nexusmind/shared'
@@ -340,6 +341,62 @@ export async function runGuard(_args: GuardRunArgs): Promise<CLIResult> {
 
   console.log()
   return { ok: true, message: `${findings.length} findings`, data: counts }
+}
+
+// ─── nexusmind ────────────────────────────────────────────────────────────────
+
+function findRepoRoot(): string {
+  let dir = __dirname
+  while (dir !== path.dirname(dir)) {
+    const pkgPath = path.join(dir, 'package.json')
+    if (fs.existsSync(pkgPath)) {
+      const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'))
+      if (pkg.name === 'nexusmind') {
+        return dir
+      }
+    }
+    dir = path.dirname(dir)
+  }
+  return process.cwd()
+}
+
+export function getVersion(): string {
+  const repoRoot = findRepoRoot()
+  const rootPkgPath = path.join(repoRoot, 'package.json')
+  const rootPkg = JSON.parse(fs.readFileSync(rootPkgPath, 'utf8'))
+  return rootPkg.version ?? '0.0.0'
+}
+
+export function openNexusMind(targetPath = '.'): void {
+  const repoRoot = findRepoRoot()
+  const desktopMain = path.join(repoRoot, 'apps/desktop/out/main/index.js')
+
+  if (!fs.existsSync(desktopMain)) {
+    console.error(`Desktop app not found at ${desktopMain}. Run "pnpm build:desktop" first.`)
+    process.exit(1)
+  }
+
+  let electronPath: string
+  try {
+    electronPath = require('electron')
+  } catch {
+    // Try resolving from desktop package node_modules
+    const desktopElectron = path.join(repoRoot, 'apps/desktop/node_modules/electron')
+    try {
+      electronPath = require(desktopElectron)
+    } catch {
+      console.error('Electron not found. Make sure dependencies are installed.')
+      process.exit(1)
+    }
+  }
+
+  const resolvedPath = path.resolve(targetPath)
+  const child = spawn(electronPath, [desktopMain, resolvedPath], {
+    detached: true,
+    stdio: 'ignore',
+  })
+  child.unref()
+  console.log(`Opening NexusMind at ${resolvedPath}`)
 }
 
 // ─── repl ─────────────────────────────────────────────────────────────────────

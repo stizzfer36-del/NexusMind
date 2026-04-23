@@ -4,6 +4,12 @@
   "version": "0.0.0",
   "type": "module",
   "main": "apps/desktop/out/main/index.cjs",
+  "bin": {
+    "nexusmind": "packages/cli/dist/bin/nexus.js"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "scripts": {
     "dev": "env -u ELECTRON_RUN_AS_NODE electron-vite dev",
     "build": "node scripts/build-wrapper.mjs",

@@ -13,6 +13,7 @@ import type {
   MCPTool,
   MCPToolCall,
   MCPToolResult,
+  MCPToolDefinition,
   MemoryEntry,
   MemorySearchResult,
   MemoryType,
@@ -118,6 +119,8 @@ export interface IpcEvents {
   'memory:search': (payload: { query: string; type?: MemoryType }) => MemorySearchResult[]
   'memory:add': (entry: Omit<MemoryEntry, 'id' | 'createdAt' | 'accessedAt'>) => MemoryEntry
   'memory:delete': (id: string) => void
+  'memory:mcpExpose': () => MCPToolDefinition
+  'memory:mcpStatus': () => { exposed: boolean; toolName: string }
 
   // voice
   'voice:getConfig': () => VoiceConfig
@@ -176,6 +179,9 @@ export interface IpcEvents {
   'context:getActiveFile': () => { path: string; content: string } | null
   'context:getSystemContext': () => string
 
+  // updater
+  'updater:install': () => void
+
   // file
   'file:read': (filePath: string) => string
   'file:write': (filePath: string, content: string) => void
@@ -200,9 +206,12 @@ export interface IpcRendererEvents {
   'swarm:update': (payload: SwarmState & { id?: string; activeNode?: string }) => void
   'swarm:message': (message: AgentMessage) => void
   'swarm:sessionCreated': (session: SwarmSession) => void
+  'swarm:fileLockConflict': (payload: { conflictingAgentId: string; filePaths: string[] }) => void
 
   // kanban / tasks
   'kanban:taskUpdated': (task: Task) => void
+  'kanban:taskLocked': (payload: { taskId: string; agentId?: string }) => void
+  'kanban:taskUnlocked': (payload: { taskId: string }) => void
 
   // models
   'models:status': (payload: { modelId: ModelId; status: string }) => void
@@ -254,6 +263,11 @@ export interface IpcRendererEvents {
   'model:token': (payload: { streamId: string; token: string; index: number }) => void
   'model:done': (payload: { streamId: string; finishReason?: string; usage?: { promptTokens: number; completionTokens: number; totalTokens: number } }) => void
   'model:error': (payload: { streamId: string; error: string }) => void
+
+  // updater
+  'updater:available': (payload: { version: string; releaseNotes?: string }) => void
+  'updater:ready': (payload: { version: string }) => void
+  'updater:error': (payload: { message: string }) => void
 
   // file
   'file:watchEvent': (payload: { id: string; eventType: string; path?: string }) => void

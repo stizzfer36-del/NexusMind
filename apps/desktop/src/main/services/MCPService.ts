@@ -5,6 +5,8 @@ import { spawn, type ChildProcess } from 'child_process'
 import { execSync } from 'child_process'
 import { ServiceRegistry, SERVICE_TOKENS } from '../ServiceRegistry.js'
 import { WindowManager } from '../windows/WindowManager.js'
+import type { MemoryService } from './MemoryService.js'
+import type { MCPToolDefinition } from '@nexusmind/shared'
 
 type MCPServerId = string
 
@@ -72,10 +74,31 @@ export class MCPService {
   private servers: Map<MCPServerId, MCPServerConfig> = new Map()
   private running: Map<MCPServerId, RunningServer> = new Map()
   private nextPingId = 1
+  private memoryService: MemoryService | null = null
+
+  constructor(memoryService?: MemoryService) {
+    this.memoryService = memoryService ?? null
+  }
 
   init(): void {
     this._registerBuiltins()
+    if (this.memoryService) {
+      this.registerTool(this.memoryService.exposeAsMCPTool())
+    }
     ServiceRegistry.getInstance().register(SERVICE_TOKENS.MCPService, this)
+  }
+
+  registerTool(def: MCPToolDefinition): void {
+    this.registry.set(def.name, {
+      name: def.name,
+      description: def.description,
+      execute: (args) => {
+        if (def.name === 'nexusmind_memory' && this.memoryService) {
+          return this.memoryService.handleMCPCall(args as { query?: string; store?: { key: string; value: string } })
+        }
+        throw new Error(`Tool execution not wired for: ${def.name}`)
+      },
+    })
   }
 
   private _push(channel: string, payload: unknown): void {

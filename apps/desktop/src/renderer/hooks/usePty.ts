@@ -1,8 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
+import { WebglAddon } from '@xterm/addon-webgl'
 import { useIPC, useIPCEvent } from './useIPC'
 import '@xterm/xterm/css/xterm.css'
+
+export interface CommandBlock {
+  id: string
+  startLine: number
+  output: string
+  complete: boolean
+  endLine?: number
+}
 
 export interface PtySession {
   id: string
@@ -15,9 +24,11 @@ export interface PtySession {
 export function usePty() {
   const [sessions, setSessions] = useState<PtySession[]>([])
   const [activeId, setActiveId] = useState<string | null>(null)
+  const [commandBlocksMap, setCommandBlocksMap] = useState<Record<string, CommandBlock[]>>({})
   const sessionsRef = useRef<Map<string, PtySession>>(new Map())
   const containerRefs = useRef<Map<string, HTMLDivElement>>(new Map())
   const resizeObservers = useRef<Map<string, ResizeObserver>>(new Map())
+  const initSentRef = useRef<Set<string>>(new Set())
 
   const createIPC = useIPC<'pty:create'>()
   const writeIPC = useIPC<'pty:write'>()
@@ -38,8 +49,14 @@ export function usePty() {
     const session = sessionsRef.current.get(payload.id)
     if (session) {
       session.terminal.write(payload.data)
+
+      // Send shell integration init string once on first data
+      if (!initSentRef.current.has(payload.id)) {
+        initSentRef.current.add(payload.id)
+        writeIPC.invoke('pty:write', payload.id, '\x1b]133;A\x07').catch(() => {})
+      }
     }
-  }, []))
+  }, [writeIPC]))
 
   // Listen for PTY exit
   useIPCEvent('pty:exit', useCallback((payload: { id: string; code: number }) => {
@@ -94,6 +111,48 @@ export function usePty() {
 
       const fitAddon = new FitAddon()
       terminal.loadAddon(fitAddon)
+
+      try {
+        terminal.loadAddon(new WebglAddon())
+      } catch (err) {
+        console.warn('[usePty] WebGL addon unavailable, falling back to canvas:', err)
+      }
+
+      terminal.parser.registerOscHandler(133, (data: string) => {
+        const code = data.split(';')[0]
+        if (code === 'C') {
+          const block: CommandBlock = {
+            id: crypto.randomUUID(),
+            startLine: terminal.buffer.active.cursorY,
+            output: '',
+            complete: false,
+          }
+          setCommandBlocksMap((prev) => ({
+            ...prev,
+            [id]: [...(prev[id] ?? []), block],
+          }))
+        } else if (code === 'D') {
+          setCommandBlocksMap((prev) => {
+            const blocks = [...(prev[id] ?? [])]
+            let lastIncomplete = -1
+            for (let i = blocks.length - 1; i >= 0; i--) {
+              if (!blocks[i].complete) {
+                lastIncomplete = i
+                break
+              }
+            }
+            if (lastIncomplete !== -1) {
+              blocks[lastIncomplete] = {
+                ...blocks[lastIncomplete],
+                complete: true,
+                endLine: terminal.buffer.active.cursorY,
+              }
+            }
+            return { ...prev, [id]: blocks }
+          })
+        }
+        return true
+      })
 
       terminal.onData((data) => {
         writeIPC.invoke('pty:write', id, data).catch(() => {})
@@ -187,6 +246,12 @@ export function usePty() {
     }
 
     containerRefs.current.delete(id)
+    initSentRef.current.delete(id)
+    setCommandBlocksMap((prev) => {
+      const next = { ...prev }
+      delete next[id]
+      return next
+    })
 
     setSessions((prev) => {
       const next = prev.filter((s) => s.id !== id)
@@ -213,5 +278,6 @@ export function usePty() {
     setActiveId,
     attachRef,
     getSession: (id: string) => sessionsRef.current.get(id) ?? null,
+    commandBlocksMap,
   }
 }

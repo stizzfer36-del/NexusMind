@@ -1,0 +1,67 @@
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  border: 1px solid transparent;
+}
+
+.button:focus-visible {
+  outline: 2px solid var(--color-accent, #7c6af7);
+  outline-offset: 2px;
+}
+
+.button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Variants */
+.primary {
+  background: var(--color-accent, #7c6af7);
+  color: #fff;
+  border-color: var(--color-accent, #7c6af7);
+}
+
+.primary:hover:not(:disabled) {
+  background: #6b5ce7;
+}
+
+.danger {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+.danger:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.25);
+}
+
+.ghost {
+  background: transparent;
+  color: var(--color-text, #e8e8e8);
+  border-color: var(--color-border, rgba(255, 255, 255, 0.15));
+}
+
+.ghost:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* Sizes */
+.sm {
+  padding: 4px 12px;
+  font-size: 11px;
+}
+
+.md {
+  padding: 6px 16px;
+  font-size: 12px;
+}
+
+.lg {
+  padding: 10px 20px;
+  font-size: 14px;
+}

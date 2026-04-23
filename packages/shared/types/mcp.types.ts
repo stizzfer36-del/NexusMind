@@ -44,6 +44,22 @@ export interface MCPToolInfo {
   inputSchema?: Record<string, unknown>
 }
 
+export interface MCPToolDefinition {
+  name: string
+  description: string
+  inputSchema: {
+    type: 'object'
+    properties: Record<string, unknown>
+    required?: string[]
+  }
+}
+
+export interface MCPToolCallResult {
+  success: boolean
+  output?: string
+  error?: string
+}
+
 export type MCPToolExecutePayload = {
   name: string
   args: Record<string, unknown>

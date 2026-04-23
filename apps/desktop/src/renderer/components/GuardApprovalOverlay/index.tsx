@@ -1,5 +1,6 @@
-import React, { useCallback, useState } from 'react'
+import React, { useCallback, useRef, useState } from 'react'
 import { useIPC, useIPCEvent } from '../../hooks'
+import { useDialogFocusTrap } from '../Dialog/hooks/useDialogFocusTrap'
 import styles from './GuardApprovalOverlay.module.css'
 
 interface ApprovalRequest {
@@ -11,6 +12,7 @@ interface ApprovalRequest {
 
 export function GuardApprovalOverlay() {
   const [request, setRequest] = useState<ApprovalRequest | null>(null)
+  const backdropRef = useRef<HTMLDivElement>(null)
   const approvalResponseIPC = useIPC<'guard:approvalResponse'>()
 
   useIPCEvent(
@@ -37,6 +39,8 @@ export function GuardApprovalOverlay() {
     [request, approvalResponseIPC]
   )
 
+  useDialogFocusTrap(backdropRef, !!request, () => respond(false))
+
   if (!request) return null
 
   const severityClass =
@@ -49,7 +53,7 @@ export function GuardApprovalOverlay() {
           : styles.severityLow
 
   return (
-    <div className={styles.backdrop} role="dialog" aria-modal="true" aria-label="Guard approval required">
+    <div className={styles.backdrop} ref={backdropRef} role="dialog" aria-modal="true" aria-label="Guard approval required">
       <div className={styles.modal}>
         <div className={styles.header}>
           <span className={styles.shieldIcon}>⛨</span>

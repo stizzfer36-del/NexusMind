@@ -39,6 +39,14 @@ export class KanbanService {
     WindowManager.getInstance().get('main')?.webContents.send('kanban:taskUpdated', payload)
   }
 
+  private pushTaskLocked(taskId: string, agentId?: string): void {
+    WindowManager.getInstance().get('main')?.webContents.send('kanban:taskLocked', { taskId, agentId })
+  }
+
+  private pushTaskUnlocked(taskId: string): void {
+    WindowManager.getInstance().get('main')?.webContents.send('kanban:taskUnlocked', { taskId })
+  }
+
   getTasks(columnId?: string): Task[] {
     const database = this.db.getDb()
     if (columnId) {
@@ -131,11 +139,22 @@ export class KanbanService {
       id,
     )
 
+    if (current.column !== merged.column) {
+      if (merged.column === 'in_progress') {
+        this.pushTaskLocked(merged.id, merged.assignee)
+      } else if (merged.column === 'done' || merged.column === 'blocked') {
+        this.pushTaskUnlocked(merged.id)
+      }
+    }
+
     this.push(merged)
     return merged
   }
 
   moveTask(id: string, columnId: string, position: number): Task {
+    const current = this.getTask(id)
+    if (!current) throw new Error(`Task not found: ${id}`)
+
     const database = this.db.getDb()
     const stmt = database.prepare(`
       UPDATE kanban_tasks SET column_id = ?, position = ?, updated_at = ? WHERE id = ?
@@ -144,6 +163,15 @@ export class KanbanService {
 
     const updated = this.getTask(id)
     if (!updated) throw new Error(`Task not found after move: ${id}`)
+
+    if (current.column !== updated.column) {
+      if (updated.column === 'in_progress') {
+        this.pushTaskLocked(updated.id, updated.assignee)
+      } else if (updated.column === 'done' || updated.column === 'blocked') {
+        this.pushTaskUnlocked(updated.id)
+      }
+    }
+
     this.push(updated)
     return updated
   }

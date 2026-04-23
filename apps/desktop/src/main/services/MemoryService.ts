@@ -1,6 +1,7 @@
 import crypto from 'crypto'
 import { ServiceRegistry, SERVICE_TOKENS } from '../ServiceRegistry.js'
 import type { DatabaseService } from './DatabaseService.js'
+import type { MCPToolDefinition, MCPToolCallResult } from '@nexusmind/shared'
 
 type MemoryType = 'episodic' | 'semantic' | 'procedural' | 'working'
 
@@ -231,6 +232,54 @@ export class MemoryService {
     }
   }
 
+  exposeAsMCPTool(): MCPToolDefinition {
+    return {
+      name: 'nexusmind_memory',
+      description: 'Query and store persistent memory across sessions',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: 'Search query for memory entries' },
+          store: {
+            type: 'object',
+            description: 'Store a new memory entry',
+            properties: {
+              key: { type: 'string', description: 'Unique key for the memory entry' },
+              value: { type: 'string', description: 'Content to store' },
+            },
+            required: ['key', 'value'],
+          },
+        },
+        required: ['query'],
+      },
+    }
+  }
+
+  async handleMCPCall(input: {
+    query?: string
+    store?: { key: string; value: string }
+  }): Promise<MCPToolCallResult> {
+    try {
+      if (input.store) {
+        this.store({
+          type: 'semantic',
+          content: `${input.store.key}: ${input.store.value}`,
+          source: 'mcp',
+        })
+        return { success: true, output: 'Memory stored successfully' }
+      }
+
+      if (input.query) {
+        const results = this.search(input.query, 5)
+        return { success: true, output: JSON.stringify(results) }
+      }
+
+      return { success: false, error: 'Missing query or store parameter' }
+    } catch (err) {
+      return { success: false, error: String(err) }
+    }
+  }
+
   getHandlers(): Record<string, (event: any, ...args: any[]) => any> {
     return {
       'memory:add': (_event: any, entry: Omit<MemoryEntry, 'id' | 'createdAt' | 'updatedAt'>) =>
@@ -243,6 +292,8 @@ export class MemoryService {
         this.store(entry),
       'memory:delete': (_event: any, id: string) => this.delete(id),
       'memory:list': (_event: any, type?: string) => this.listMemories(type),
+      'memory:mcpExpose': () => this.exposeAsMCPTool(),
+      'memory:mcpStatus': () => ({ exposed: true, toolName: 'nexusmind_memory' }),
     }
   }
 }

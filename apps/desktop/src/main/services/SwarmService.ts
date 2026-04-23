@@ -51,6 +51,7 @@ const DEFAULT_MODEL_CONFIG: ModelConfig = {
 export class SwarmService {
   private sessions: Map<string, SwarmSession> = new Map()
   private cancelFlags: Map<string, boolean> = new Map()
+  private fileLocks: Map<string, string> = new Map()
 
   init(): void {
     ServiceRegistry.getInstance().register(SERVICE_TOKENS.SwarmService, this)
@@ -311,143 +312,164 @@ export class SwarmService {
       console.warn(`[SwarmService] assignToAgent failed for task ${task.id}:`, err)
     }
 
-    // Build messages array with system prompt + task content
-    const systemPrompt = ROLE_PROMPTS[role] ?? ''
-    const messages: AgentMessage[] = [
-      {
-        id: crypto.randomUUID(),
-        agentId,
-        role: SharedAgentRole.USER,
-        content: `${systemPrompt}\n\nTask: ${task.title}\n\n${task.description ?? ''}`,
-        timestamp: Date.now(),
-      },
-    ]
-
-    // Stream from modelRouter, accumulate response string
-    let response = ''
-    try {
-      for await (const chunk of modelRouter.route(DEFAULT_MODEL_CONFIG, messages)) {
-        if (chunk.content) {
-          response += chunk.content
-        }
-        if (chunk.isDone) break
-      }
-    } catch (err) {
-      console.error(`[SwarmService] executeAgentRole(${role}) — model error on task "${task.title}":`, err)
-      throw err
-    }
-
-    // Check cancellation after streaming
-    if (state.cancelled || this.cancelFlags.get(state.sessionId)) {
-      state.cancelled = true
-      return state
-    }
-
-    // Lazy recorder
-    let recorder: EventRecorder | null = null
-    try {
-      const reg = ServiceRegistry.getInstance()
-      recorder = reg.resolve<EventRecorder>(SERVICE_TOKENS.EventRecorder)
-    } catch {}
-    recorder?.record({
-      sessionId: state.sessionId,
-      type: 'agent:output',
-      nodeId: role,
-      agentId,
-      payload: { content: response.slice(0, 1000), taskTitle: task?.title ?? '' }
-    })
-
-    // Parse tool calls with TOOL_PATTERN regex, execute via mcpService if available
-    const TOOL_PATTERN = /```tool\s*\n(\{[\s\S]*?\})\s*\n```/g
-    const toolResults: string[] = []
-
-    let mcpService: MCPService | null = null
-    try {
-      mcpService = registry.resolve<MCPService>(SERVICE_TOKENS.MCPService)
-    } catch {
-      // MCPService not available — skip tool execution
-    }
-
-    if (mcpService) {
-      let toolMatch: RegExpExecArray | null
-      while ((toolMatch = TOOL_PATTERN.exec(response)) !== null) {
-        const rawJson = toolMatch[1]
-        try {
-          const call = JSON.parse(rawJson) as { name: string; args: Record<string, unknown> }
-          if (typeof call.name === 'string' && call.args && typeof call.args === 'object') {
-            console.log(`[SwarmService] Agent ${agentId} (${role}) — executing tool: ${call.name}`)
-            const result = await mcpService.executeTool(call.name, call.args)
-            const resultStr = `[Tool: ${call.name}] Result: ${JSON.stringify(result).slice(0, 500)}`
-            toolResults.push(resultStr)
-            console.log(`[SwarmService] ${resultStr}`)
+    // Acquire file locks before execution
+    const filePaths = this._extractFilePaths(`${task.title} ${task.description ?? ''}`)
+    if (filePaths.length > 0) {
+      if (!this.acquireFileLock(agentId, filePaths)) {
+        let conflictingAgentId = ''
+        for (const fp of filePaths) {
+          const holder = this.fileLocks.get(fp)
+          if (holder && holder !== agentId) {
+            conflictingAgentId = holder
+            break
           }
-        } catch (err) {
-          console.error(`[SwarmService] Tool call failed:`, err)
-          toolResults.push(`[Tool: error] ${String(err).slice(0, 200)}`)
+        }
+        this.push('swarm:fileLockConflict', { conflictingAgentId, filePaths })
+        throw new Error('file-lock-conflict')
+      }
+    }
+
+    try {
+      // Build messages array with system prompt + task content
+      const systemPrompt = ROLE_PROMPTS[role] ?? ''
+      const messages: AgentMessage[] = [
+        {
+          id: crypto.randomUUID(),
+          agentId,
+          role: SharedAgentRole.USER,
+          content: `${systemPrompt}\n\nTask: ${task.title}\n\n${task.description ?? ''}`,
+          timestamp: Date.now(),
+        },
+      ]
+
+      // Stream from modelRouter, accumulate response string
+      let response = ''
+      try {
+        for await (const chunk of modelRouter.route(DEFAULT_MODEL_CONFIG, messages)) {
+          if (chunk.content) {
+            response += chunk.content
+          }
+          if (chunk.isDone) break
+        }
+      } catch (err) {
+        console.error(`[SwarmService] executeAgentRole(${role}) — model error on task "${task.title}":`, err)
+        throw err
+      }
+
+      // Check cancellation after streaming
+      if (state.cancelled || this.cancelFlags.get(state.sessionId)) {
+        state.cancelled = true
+        return state
+      }
+
+      // Lazy recorder
+      let recorder: EventRecorder | null = null
+      try {
+        const reg = ServiceRegistry.getInstance()
+        recorder = reg.resolve<EventRecorder>(SERVICE_TOKENS.EventRecorder)
+      } catch {}
+      recorder?.record({
+        sessionId: state.sessionId,
+        type: 'agent:output',
+        nodeId: role,
+        agentId,
+        payload: { content: response.slice(0, 1000), taskTitle: task?.title ?? '' }
+      })
+
+      // Parse tool calls with TOOL_PATTERN regex, execute via mcpService if available
+      const TOOL_PATTERN = /```tool\s*\n(\{[\s\S]*?\})\s*\n```/g
+      const toolResults: string[] = []
+
+      let mcpService: MCPService | null = null
+      try {
+        mcpService = registry.resolve<MCPService>(SERVICE_TOKENS.MCPService)
+      } catch {
+        // MCPService not available — skip tool execution
+      }
+
+      if (mcpService) {
+        let toolMatch: RegExpExecArray | null
+        while ((toolMatch = TOOL_PATTERN.exec(response)) !== null) {
+          const rawJson = toolMatch[1]
+          try {
+            const call = JSON.parse(rawJson) as { name: string; args: Record<string, unknown> }
+            if (typeof call.name === 'string' && call.args && typeof call.args === 'object') {
+              console.log(`[SwarmService] Agent ${agentId} (${role}) — executing tool: ${call.name}`)
+              const result = await mcpService.executeTool(call.name, call.args)
+              const resultStr = `[Tool: ${call.name}] Result: ${JSON.stringify(result).slice(0, 500)}`
+              toolResults.push(resultStr)
+              console.log(`[SwarmService] ${resultStr}`)
+            }
+          } catch (err) {
+            console.error(`[SwarmService] Tool call failed:`, err)
+            toolResults.push(`[Tool: error] ${String(err).slice(0, 200)}`)
+          }
         }
       }
-    }
 
-    // Mark task complete in kanban
-    try {
-      kanban.updateTask(task.id, { column: 'done', assignee: agentId })
-    } catch (err) {
-      console.warn(`[SwarmService] updateTask failed for task ${task.id}:`, err)
-    }
-
-    // Persist to memory
-    try {
-      const fullContent = toolResults.length > 0
-        ? `${response}\n\nTools used:\n${toolResults.join('\n')}`
-        : response
-      memory.store({
-        type: 'episodic',
-        content: fullContent,
-        source: `${agentId}:${role}`,
-      })
-    } catch (err) {
-      console.warn(`[SwarmService] memory.store failed for agent ${agentId}:`, err)
-    }
-
-    // Role-specific outcome evaluation
-    if (role === 'reviewer') {
-      const rejectionKeywords = ['reject', 'incorrect', 'wrong', 'fail', 'bug', 'error', 'broken']
-      const lower = response.toLowerCase()
-      state.reviewPassed = !rejectionKeywords.some((kw) => lower.includes(kw))
-    }
-
-    if (role === 'tester') {
-      const failureKeywords = ['fail', 'failing', 'broken', 'no tests', 'cannot test']
-      const lower = response.toLowerCase()
-      state.testPassed = !failureKeywords.some((kw) => lower.includes(kw))
-    }
-
-    // Append to agentOutputs
-    state.agentOutputs.push({
-      agentId,
-      role,
-      content: response,
-      round: state.currentRound,
-    })
-
-    // Increment round counter
-    state.currentRound += 1
-
-    // Push truncated output to session messages
-    const session = this.sessions.get(state.sessionId)
-    if (session) {
-      let fullOutput = response
-      if (toolResults.length > 0) {
-        fullOutput += '\n' + toolResults.join('\n')
+      // Mark task complete in kanban
+      try {
+        kanban.updateTask(task.id, { column: 'done', assignee: agentId })
+      } catch (err) {
+        console.warn(`[SwarmService] updateTask failed for task ${task.id}:`, err)
       }
-      const truncated = fullOutput.length > 500 ? `${fullOutput.slice(0, 500)}…` : fullOutput
-      session.state.messages.push(truncated)
+
+      // Persist to memory
+      try {
+        const fullContent = toolResults.length > 0
+          ? `${response}\n\nTools used:\n${toolResults.join('\n')}`
+          : response
+        memory.store({
+          type: 'episodic',
+          content: fullContent,
+          source: `${agentId}:${role}`,
+        })
+      } catch (err) {
+        console.warn(`[SwarmService] memory.store failed for agent ${agentId}:`, err)
+      }
+
+      // Role-specific outcome evaluation
+      if (role === 'reviewer') {
+        const rejectionKeywords = ['reject', 'incorrect', 'wrong', 'fail', 'bug', 'error', 'broken']
+        const lower = response.toLowerCase()
+        state.reviewPassed = !rejectionKeywords.some((kw) => lower.includes(kw))
+      }
+
+      if (role === 'tester') {
+        const failureKeywords = ['fail', 'failing', 'broken', 'no tests', 'cannot test']
+        const lower = response.toLowerCase()
+        state.testPassed = !failureKeywords.some((kw) => lower.includes(kw))
+      }
+
+      // Append to agentOutputs
+      state.agentOutputs.push({
+        agentId,
+        role,
+        content: response,
+        round: state.currentRound,
+      })
+
+      // Increment round counter
+      state.currentRound += 1
+
+      // Push truncated output to session messages
+      const session = this.sessions.get(state.sessionId)
+      if (session) {
+        let fullOutput = response
+        if (toolResults.length > 0) {
+          fullOutput += '\n' + toolResults.join('\n')
+        }
+        const truncated = fullOutput.length > 500 ? `${fullOutput.slice(0, 500)}…` : fullOutput
+        session.state.messages.push(truncated)
+      }
+
+      // Brief inter-task pause
+      await this._delay(500)
+
+      return state
+    } finally {
+      this.releaseFileLock(agentId)
     }
-
-    // Brief inter-task pause
-    await this._delay(500)
-
-    return state
   }
 
   // -------------------------------------------------------------------------
@@ -515,6 +537,49 @@ export class SwarmService {
       'swarm:listSessions': () => this.listSessions(),
       'swarm:getSession': (_event: IpcMainInvokeEvent, id: string) => this.getSession(id),
     }
+  }
+
+  // -------------------------------------------------------------------------
+  // File locks
+  // -------------------------------------------------------------------------
+
+  private acquireFileLock(agentId: string, filePaths: string[]): boolean {
+    for (const fp of filePaths) {
+      const existing = this.fileLocks.get(fp)
+      if (existing && existing !== agentId) {
+        return false
+      }
+    }
+    for (const fp of filePaths) {
+      this.fileLocks.set(fp, agentId)
+    }
+    return true
+  }
+
+  private releaseFileLock(agentId: string): void {
+    for (const [fp, holder] of this.fileLocks.entries()) {
+      if (holder === agentId) {
+        this.fileLocks.delete(fp)
+      }
+    }
+  }
+
+  getFileLocks(): Record<string, string> {
+    const result: Record<string, string> = {}
+    for (const [fp, id] of this.fileLocks.entries()) {
+      result[fp] = id
+    }
+    return result
+  }
+
+  private _extractFilePaths(text: string): string[] {
+    const paths = new Set<string>()
+    const unix = /(?:\/[\w\-]+)+(?:\.[\w]+)?/g
+    const win = /[A-Za-z]:\\(?:[\w\-]+\\)*[\w\-]+(?:\.[\w]+)?/g
+    let m: RegExpExecArray | null
+    while ((m = unix.exec(text)) !== null) paths.add(m[0])
+    while ((m = win.exec(text)) !== null) paths.add(m[0])
+    return Array.from(paths)
   }
 
   // -------------------------------------------------------------------------
