@@ -19,6 +19,10 @@ export const SERVICE_TOKENS = {
   ContextService: 'ContextService',
   GitService: Symbol('GitService'),
   CodebaseIndex: 'CodebaseIndex',
+  NexusRules: 'NexusRules',
+  EmbeddingProvider: 'EmbeddingProvider',
+  BudgetService: 'BudgetService',
+  StatePersistence: 'StatePersistence',
 } as const
 
 export class ServiceRegistry {

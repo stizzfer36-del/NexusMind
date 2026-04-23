@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { persist } from './persist'
 import type { BenchTask, BenchDimension, BenchRunResult } from '@nexusmind/shared'
 
 export type DimensionFilter = 'all' | BenchDimension
@@ -21,20 +22,25 @@ interface BenchState {
   clearError: () => void
 }
 
-export const useBenchStore = create<BenchState>((set) => ({
-  tasks: [],
-  runs: [],
-  selectedDimension: 'all',
-  selectedModelId: null,
-  selectedProvider: null,
-  isRunning: false,
-  lastError: null,
+export const useBenchStore = create<BenchState>(
+  persist(
+    (set) => ({
+      tasks: [],
+      runs: [],
+      selectedDimension: 'all',
+      selectedModelId: null,
+      selectedProvider: null,
+      isRunning: false,
+      lastError: null,
 
-  setTasks: (tasks) => set({ tasks }),
-  setRuns: (runs) => set({ runs }),
-  setSelectedDimension: (selectedDimension) => set({ selectedDimension }),
-  setSelectedModel: (selectedModelId, selectedProvider) => set({ selectedModelId, selectedProvider }),
-  setIsRunning: (isRunning) => set({ isRunning }),
-  setLastError: (lastError) => set({ lastError }),
-  clearError: () => set({ lastError: null }),
-}))
+      setTasks: (tasks) => set({ tasks }),
+      setRuns: (runs) => set({ runs }),
+      setSelectedDimension: (selectedDimension) => set({ selectedDimension }),
+      setSelectedModel: (selectedModelId, selectedProvider) => set({ selectedModelId, selectedProvider }),
+      setIsRunning: (isRunning) => set({ isRunning }),
+      setLastError: (lastError) => set({ lastError }),
+      clearError: () => set({ lastError: null }),
+    }),
+    { name: 'bench-store' }
+  )
+)

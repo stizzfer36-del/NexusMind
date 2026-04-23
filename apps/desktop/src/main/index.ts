@@ -27,6 +27,9 @@ import { SyncService } from './services/SyncService.js'
 import { FileService } from './services/FileService.js'
 import { ContextService } from './services/ContextService.js'
 import { BudgetService } from './services/BudgetService.js'
+import { NexusRulesService } from './services/NexusRulesService.js'
+import { EmbeddingService } from './services/EmbeddingProvider.js'
+import { StatePersistenceService } from './services/StatePersistenceService.js'
 import { ServiceRegistry, SERVICE_TOKENS } from './ServiceRegistry.js'
 
 const failedServices: string[] = []
@@ -178,11 +181,20 @@ async function bootstrap(): Promise<void> {
   const fileService = new FileService()
   await safeInit('FileService', () => fileService.init())
 
+  const nexusRulesService = new NexusRulesService()
+  await safeInit('NexusRulesService', () => nexusRulesService.init())
+
+  const embeddingService = new EmbeddingService()
+  await safeInit('EmbeddingService', () => embeddingService.init())
+
   const contextService = new ContextService()
   await safeInit('ContextService', () => contextService.init())
 
   const budgetService = new BudgetService()
   await safeInit('BudgetService', () => budgetService.init())
+
+  const statePersistenceService = new StatePersistenceService()
+  await safeInit('StatePersistenceService', () => statePersistenceService.init())
 
   const router = new IPCRouter()
   const allHandlers: Record<string, any> = {
@@ -204,6 +216,9 @@ async function bootstrap(): Promise<void> {
     ...linkService.getHandlers(),
     ...syncService.getHandlers(),
     ...fileService.getHandlers(),
+    ...nexusRulesService.getHandlers(),
+    ...embeddingService.getHandlers(),
+    ...statePersistenceService.getHandlers(),
     ...contextService.getHandlers(),
     ...budgetService.getHandlers(),
     ...createModelIpcHandlers(modelRouter),
@@ -213,8 +228,38 @@ async function bootstrap(): Promise<void> {
   // Persist renderer crash reports to ~/.nexusmind/crash.log
   const crashLogDir = path.join(os.homedir(), '.nexusmind')
   const crashLogPath = path.join(crashLogDir, 'crash.log')
+  const crashStatePath = path.join(crashLogDir, 'crash-state.json')
+  
+  let crashCount = 0
+  let lastCrashTime = 0
+  const CRASH_WINDOW_MS = 60000 // 1 minute
+  const MAX_CRASHES = 3
+  
+  // Load crash state
+  try {
+    if (fs.existsSync(crashStatePath)) {
+      const state = JSON.parse(fs.readFileSync(crashStatePath, 'utf8'))
+      crashCount = state.count || 0
+      lastCrashTime = state.lastTime || 0
+      
+      // Reset if outside window
+      if (Date.now() - lastCrashTime > CRASH_WINDOW_MS) {
+        crashCount = 0
+      }
+    }
+  } catch {
+    crashCount = 0
+  }
+  
   ipcMain.on('app:rendererCrash', (_event, payload) => {
     try {
+      crashCount++
+      lastCrashTime = Date.now()
+      fs.writeFileSync(crashStatePath, JSON.stringify({
+        count: crashCount,
+        lastTime: lastCrashTime,
+      }), 'utf8')
+      
       if (!fs.existsSync(crashLogDir)) {
         fs.mkdirSync(crashLogDir, { recursive: true })
       }
@@ -229,10 +274,36 @@ async function bootstrap(): Promise<void> {
       ].join('\n')
       fs.appendFileSync(crashLogPath, entry, 'utf8')
       console.error('[main] Renderer crash logged to', crashLogPath)
+      
+      // Notify renderer about crash recovery mode
+      const win = WindowManager.getInstance().get('main')
+      if (win && !win.isDestroyed()) {
+        win.webContents.send('app:crashRecovery', {
+          crashCount,
+          maxCrashes: MAX_CRASHES,
+          inRecoveryMode: crashCount >= MAX_CRASHES,
+        })
+      }
     } catch (err) {
       console.error('[main] Failed to write crash log:', err)
     }
   })
+  
+  // Reset crash count on successful operation
+  ipcMain.handle('app:resetCrashCount', () => {
+    crashCount = 0
+    try {
+      fs.unlinkSync(crashStatePath)
+    } catch {}
+    return { success: true }
+  })
+  
+  // Get crash status
+  ipcMain.handle('app:getCrashStatus', () => ({
+    crashCount,
+    lastCrashTime,
+    inRecoveryMode: crashCount >= MAX_CRASHES,
+  }))
 
   app.on('before-quit', () => {
     ptyManager.listSessions().forEach(id => {

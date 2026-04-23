@@ -1,8 +1,19 @@
 import { ServiceRegistry, SERVICE_TOKENS } from '../ServiceRegistry.js'
 import type { DatabaseService } from './DatabaseService.js'
-import type { EmbeddingProvider } from './EmbeddingProvider.js'
+import type { EmbeddingService } from './EmbeddingProvider.js'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
+
+// ---------------------------------------------------------------------------
+// CodebaseIndexService - Refactored with Incremental Indexing & File Watching
+// ---------------------------------------------------------------------------
+// This service provides fast, semantic search over the codebase using:
+//   • Incremental indexing (only changed files are re-indexed)
+//   • Real-time file watching (chokidar for automatic updates)
+//   • Semantic embeddings (via EmbeddingService with fallback to TF-IDF)
+//   • Cached IDF statistics (no full-scan on every query)
+//   • Persistent index in SQLite (survives restarts)
+// ---------------------------------------------------------------------------
 
 interface CodebaseFile {
   id: string
@@ -17,6 +28,12 @@ interface CodebaseFile {
 interface SearchResult {
   file: CodebaseFile
   similarity: number
+}
+
+interface IndexCache {
+  idf: Map<string, number>
+  totalDocs: number
+  lastUpdated: number
 }
 
 const SUPPORTED_EXTENSIONS: Record<string, string> = {
@@ -70,20 +87,24 @@ const IGNORE_PATTERNS = [
 
 export class CodebaseIndexService {
   private db!: DatabaseService
-  private embeddingProvider: EmbeddingProvider | null = null
+  private embeddingService: EmbeddingService | null = null
   private workspaceRoot: string = ''
   private isIndexing: boolean = false
   private indexProgress: { total: number; current: number } = { total: 0, current: 0 }
+  private idfCache: IndexCache | null = null
+  private fileWatcher: any = null
+  private pendingUpdates: Set<string> = new Set()
+  private updateTimeout: ReturnType<typeof setTimeout> | null = null
 
   init(): void {
     const registry = ServiceRegistry.getInstance()
     this.db = registry.resolve<DatabaseService>(SERVICE_TOKENS.DB)
-    this.ensureTable()
+    this.ensureTables()
     
     try {
-      this.embeddingProvider = registry.resolve<EmbeddingProvider>(SERVICE_TOKENS.EmbeddingProvider)
+      this.embeddingService = registry.resolve<EmbeddingService>(SERVICE_TOKENS.EmbeddingProvider)
     } catch {
-      console.log('[CodebaseIndexService] EmbeddingProvider not available, using TF-IDF fallback')
+      console.log('[CodebaseIndexService] EmbeddingService not available, using TF-IDF fallback')
     }
 
     try {
@@ -94,9 +115,17 @@ export class CodebaseIndexService {
     }
 
     registry.register(SERVICE_TOKENS.CodebaseIndex, this)
+    
+    // Load cached IDF on init
+    this.loadIDFCache()
+    
+    // Setup file watching if chokidar is available
+    this.setupFileWatching()
+    
+    console.log('[CodebaseIndexService] Initialized with incremental indexing')
   }
 
-  private ensureTable(): void {
+  private ensureTables(): void {
     this.db.getDb().exec(`
       CREATE TABLE IF NOT EXISTS codebase_index (
         id TEXT PRIMARY KEY,
@@ -109,8 +138,168 @@ export class CodebaseIndexService {
       );
       CREATE INDEX IF NOT EXISTS idx_codebase_language ON codebase_index(language);
       CREATE INDEX IF NOT EXISTS idx_codebase_path ON codebase_index(path);
+      CREATE INDEX IF NOT EXISTS idx_codebase_modified ON codebase_index(last_modified);
+      
+      CREATE TABLE IF NOT EXISTS codebase_index_metadata (
+        key TEXT PRIMARY KEY,
+        value TEXT
+      );
     `)
   }
+
+  // -------------------------------------------------------------------------
+  // Incremental IDF Caching
+  // -------------------------------------------------------------------------
+
+  private loadIDFCache(): void {
+    try {
+      const row = this.db.getDb()
+        .prepare("SELECT value FROM codebase_index_metadata WHERE key = 'idf_cache'")
+        .get() as { value: string } | undefined
+      
+      if (row) {
+        const parsed = JSON.parse(row.value)
+        this.idfCache = {
+          idf: new Map(Object.entries(parsed.idf)),
+          totalDocs: parsed.totalDocs,
+          lastUpdated: parsed.lastUpdated,
+        }
+      }
+    } catch {
+      this.idfCache = null
+    }
+  }
+
+  private saveIDFCache(): void {
+    if (!this.idfCache) return
+    
+    const cacheData = {
+      idf: Object.fromEntries(this.idfCache.idf),
+      totalDocs: this.idfCache.totalDocs,
+      lastUpdated: Date.now(),
+    }
+    
+    this.db.getDb()
+      .prepare("INSERT OR REPLACE INTO codebase_index_metadata (key, value) VALUES ('idf_cache', ?)")
+      .run(JSON.stringify(cacheData))
+  }
+
+  private async computeIncrementalIDF(): Promise<void> {
+    const files = this.db.getDb()
+      .prepare('SELECT content FROM codebase_index')
+      .all() as Array<{ content: string }>
+    
+    const corpus = files.map(f => f.content)
+    const N = corpus.length
+    const df = new Map<string, number>()
+    
+    for (const doc of corpus) {
+      const terms = new Set(this.tokenize(doc))
+      for (const term of terms) {
+        df.set(term, (df.get(term) ?? 0) + 1)
+      }
+    }
+    
+    const idf = new Map<string, number>()
+    for (const [term, count] of df) {
+      idf.set(term, Math.log((N + 1) / (count + 1)) + 1)
+    }
+    
+    this.idfCache = {
+      idf,
+      totalDocs: N,
+      lastUpdated: Date.now(),
+    }
+    
+    this.saveIDFCache()
+  }
+
+  // -------------------------------------------------------------------------
+  // File Watching (chokidar)
+  // -------------------------------------------------------------------------
+
+  private async setupFileWatching(): Promise<void> {
+    if (!this.workspaceRoot) return
+    
+    try {
+      const chokidar = await import('chokidar')
+      
+      const watcher = chokidar.watch(this.workspaceRoot, {
+        ignored: [
+          /node_modules/,
+          /\.git/,
+          /dist/,
+          /build/,
+          /out/,
+          /\.(min\.(js|css))$/,
+        ],
+        persistent: true,
+        ignoreInitial: true,
+      })
+      
+      watcher
+        .on('add', (filePath: string) => this.handleFileChange(filePath))
+        .on('change', (filePath: string) => this.handleFileChange(filePath))
+        .on('unlink', (filePath: string) => this.handleFileDelete(filePath))
+      
+      this.fileWatcher = watcher
+      console.log('[CodebaseIndexService] File watching enabled (chokidar)')
+    } catch {
+      console.log('[CodebaseIndexService] chokidar not available, file watching disabled')
+    }
+  }
+
+  private handleFileChange(filePath: string): void {
+    const relativePath = path.relative(this.workspaceRoot, filePath)
+    const ext = path.extname(filePath).toLowerCase()
+    
+    if (!SUPPORTED_EXTENSIONS[ext]) return
+    if (this.shouldIgnore(relativePath)) return
+    
+    this.pendingUpdates.add(relativePath)
+    
+    // Debounce batch updates
+    if (this.updateTimeout) {
+      clearTimeout(this.updateTimeout)
+    }
+    
+    this.updateTimeout = setTimeout(() => {
+      this.processPendingUpdates()
+    }, 1000)
+  }
+
+  private handleFileDelete(filePath: string): void {
+    const relativePath = path.relative(this.workspaceRoot, filePath)
+    
+    this.db.getDb()
+      .prepare('DELETE FROM codebase_index WHERE path = ?')
+      .run(relativePath)
+    
+    this.pendingUpdates.delete(relativePath)
+  }
+
+  private async processPendingUpdates(): Promise<void> {
+    if (this.pendingUpdates.size === 0) return
+    
+    console.log(`[CodebaseIndexService] Processing ${this.pendingUpdates.size} file updates...`)
+    
+    const updates = Array.from(this.pendingUpdates)
+    this.pendingUpdates.clear()
+    
+    for (const relativePath of updates) {
+      const fullPath = path.join(this.workspaceRoot, relativePath)
+      
+      if (fs.existsSync(fullPath)) {
+        await this.indexFile({ path: relativePath, fullPath })
+      }
+    }
+    
+    await this.computeIncrementalIDF()
+  }
+
+  // -------------------------------------------------------------------------
+  // Indexing
+  // -------------------------------------------------------------------------
 
   async indexWorkspace(onProgress?: (progress: { total: number; current: number }) => void): Promise<void> {
     if (this.isIndexing) {
@@ -126,6 +315,7 @@ export class CodebaseIndexService {
       
       console.log(`[CodebaseIndexService] Indexing ${files.length} files...`)
 
+      // Process in batches
       const batchSize = 10
       for (let i = 0; i < files.length; i += batchSize) {
         const batch = files.slice(i, i + batchSize)
@@ -136,6 +326,10 @@ export class CodebaseIndexService {
       }
 
       this.cleanupDeletedFiles(files.map(f => f.path))
+      
+      // Recompute IDF after full index
+      await this.computeIncrementalIDF()
+      
       console.log('[CodebaseIndexService] Indexing complete')
     } finally {
       this.isIndexing = false
@@ -188,6 +382,7 @@ export class CodebaseIndexService {
       const ext = path.extname(file.path).toLowerCase()
       const language = SUPPORTED_EXTENSIONS[ext] || 'plaintext'
       
+      // Check if file needs re-indexing
       const existing = this.db.getDb()
         .prepare('SELECT last_modified FROM codebase_index WHERE path = ?')
         .get(file.path) as { last_modified: number } | undefined
@@ -196,13 +391,14 @@ export class CodebaseIndexService {
         return
       }
 
+      // Generate embedding
       let embedding: number[] = []
       
-      if (this.embeddingProvider) {
+      if (this.embeddingService?.isAvailable()) {
         try {
           const chunks = this.chunkContent(content)
           const embeddings = await Promise.all(
-            chunks.map(chunk => this.embeddingProvider!.embed(chunk))
+            chunks.map(chunk => this.embeddingService!.embed(chunk))
           )
           embedding = this.averageEmbeddings(embeddings)
         } catch (err) {
@@ -268,23 +464,24 @@ export class CodebaseIndexService {
   }
 
   private computeTFIDF(content: string): number[] {
-    const tokens = content.toLowerCase()
-      .replace(/[^a-z0-9_]/g, ' ')
-      .split(/\s+/)
-      .filter(t => t.length > 2)
+    const tokens = this.tokenize(content)
     
-    const freq = new Map<string, number>()
+    const tf = new Map<string, number>()
     for (const token of tokens) {
-      freq.set(token, (freq.get(token) || 0) + 1)
+      tf.set(token, (tf.get(token) ?? 0) + 1)
     }
     
+    // Use cached IDF if available
+    const idf = this.idfCache?.idf ?? new Map()
+    
     const vector: number[] = []
-    const sortedTokens = Array.from(freq.entries())
+    const sortedTokens = Array.from(tf.entries())
       .sort((a, b) => b[1] - a[1])
       .slice(0, 100)
     
-    for (const [_, count] of sortedTokens) {
-      vector.push(count / tokens.length)
+    for (const [term, count] of sortedTokens) {
+      const idfVal = idf.get(term) ?? 1.0
+      vector.push((count / tokens.length) * idfVal)
     }
     
     while (vector.length < 100) {
@@ -292,6 +489,14 @@ export class CodebaseIndexService {
     }
     
     return vector
+  }
+
+  private tokenize(text: string): string[] {
+    return text
+      .toLowerCase()
+      .replace(/[^a-z0-9_]/g, ' ')
+      .split(/\s+/)
+      .filter(t => t.length > 2)
   }
 
   private cleanupDeletedFiles(existingPaths: string[]): void {
@@ -309,8 +514,25 @@ export class CodebaseIndexService {
     }
   }
 
-  search(query: string, limit: number = 10): SearchResult[] {
-    const queryEmbedding = this.computeTFIDF(query)
+  // -------------------------------------------------------------------------
+  // Search
+  // -------------------------------------------------------------------------
+
+  async search(query: string, limit: number = 10): Promise<SearchResult[]> {
+    let queryVector: number[]
+    let useSemantic = false
+    
+    // Try semantic embedding first
+    if (this.embeddingService?.isAvailable()) {
+      try {
+        queryVector = await this.embeddingService.embed(query)
+        useSemantic = true
+      } catch {
+        queryVector = this.computeTFIDF(query)
+      }
+    } else {
+      queryVector = this.computeTFIDF(query)
+    }
     
     const files = this.db.getDb()
       .prepare('SELECT * FROM codebase_index')
@@ -329,7 +551,9 @@ export class CodebaseIndexService {
     for (const file of files) {
       try {
         const embedding = JSON.parse(file.embedding_json) as number[]
-        const similarity = this.cosineSimilarity(queryEmbedding, embedding)
+        const similarity = useSemantic && embedding.length > 100
+          ? this.cosineSimilarityVectors(queryVector, embedding)
+          : this.cosineSimilarity(queryVector, embedding)
         
         results.push({
           file: {
@@ -353,10 +577,10 @@ export class CodebaseIndexService {
       .slice(0, limit)
   }
 
-  searchByLanguage(language: string, query: string, limit: number = 10): SearchResult[] {
-    return this.search(query, limit * 2)
-      .filter(r => r.file.language === language)
-      .slice(0, limit)
+  searchByLanguage(language: string, query: string, limit: number = 10): Promise<SearchResult[]> {
+    return this.search(query, limit * 2).then(results =>
+      results.filter(r => r.file.language === language).slice(0, limit)
+    )
   }
 
   private cosineSimilarity(a: number[], b: number[]): number {
@@ -374,6 +598,26 @@ export class CodebaseIndexService {
     if (normA === 0 || normB === 0) return 0
     return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB))
   }
+
+  private cosineSimilarityVectors(a: number[], b: number[]): number {
+    const len = Math.min(a.length, b.length)
+    let dotProduct = 0
+    let normA = 0
+    let normB = 0
+    
+    for (let i = 0; i < len; i++) {
+      dotProduct += a[i] * b[i]
+      normA += a[i] * a[i]
+      normB += b[i] * b[i]
+    }
+    
+    if (normA === 0 || normB === 0) return 0
+    return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB))
+  }
+
+  // -------------------------------------------------------------------------
+  // Stats & Status
+  // -------------------------------------------------------------------------
 
   getIndexStats(): { totalFiles: number; languages: Record<string, number>; lastIndexed: number | null } {
     const totalFiles = (this.db.getDb()
@@ -408,19 +652,36 @@ export class CodebaseIndexService {
     return this.indexProgress
   }
 
+  // -------------------------------------------------------------------------
+  // IPC Handlers
+  // -------------------------------------------------------------------------
+
   getHandlers(): Record<string, (event: any, ...args: any[]) => any> {
     return {
       'codebase:index': async () => {
         await this.indexWorkspace()
         return { success: true }
       },
-      'codebase:search': (_event: any, query: string, limit?: number) => 
+      'codebase:search': async (_event: any, query: string, limit?: number) => 
         this.search(query, limit),
-      'codebase:searchByLanguage': (_event: any, language: string, query: string, limit?: number) =>
+      'codebase:searchByLanguage': async (_event: any, language: string, query: string, limit?: number) =>
         this.searchByLanguage(language, query, limit),
       'codebase:stats': () => this.getIndexStats(),
       'codebase:isIndexing': () => this.getIsIndexing(),
       'codebase:progress': () => this.getIndexProgress(),
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // Cleanup
+  // -------------------------------------------------------------------------
+
+  dispose(): void {
+    if (this.fileWatcher) {
+      this.fileWatcher.close()
+    }
+    if (this.updateTimeout) {
+      clearTimeout(this.updateTimeout)
     }
   }
 }

@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { persist } from './persist'
 import type { SwarmSession, AgentInfo } from '@nexusmind/shared'
 
 // ─── Node status for graph visualization ────────────────────────────────────
@@ -62,48 +63,53 @@ const INITIAL_NODE_STATES: Record<string, SwarmNodeState> = {
   docwriter:  { role: 'docwriter',   status: 'idle', output: '', fileLocks: [], agentId: '', startedAt: null, completedAt: null },
 }
 
-export const useSwarmStore = create<SwarmStore>((set) => ({
-  sessions: [],
-  agents: [],
-  selectedSessionId: null,
-  isLoadingAgents: false,
-  agentsError: null,
+export const useSwarmStore = create<SwarmStore>(
+  persist(
+    (set) => ({
+      sessions: [],
+      agents: [],
+      selectedSessionId: null,
+      isLoadingAgents: false,
+      agentsError: null,
 
-  activeNode: null,
-  nodeStates: { ...INITIAL_NODE_STATES },
-  edgeMessages: [],
-  selectedNodeId: null,
+      activeNode: null,
+      nodeStates: { ...INITIAL_NODE_STATES },
+      edgeMessages: [],
+      selectedNodeId: null,
 
-  setSessions: (sessions) => set({ sessions }),
-  addSession: (session) => set((state) => {
-    if (state.sessions.some((s) => s.id === session.id)) return state
-    return { sessions: [...state.sessions, session] }
-  }),
-  updateSession: (id, updater) => set((state) => ({
-    sessions: state.sessions.map((s) => (s.id === id ? updater(s) : s)),
-  })),
-  setSelectedSessionId: (selectedSessionId) => set({ selectedSessionId }),
-  setAgents: (agents) => set({ agents }),
-  setAgentsLoading: (isLoadingAgents) => set({ isLoadingAgents }),
-  setAgentsError: (agentsError) => set({ agentsError }),
+      setSessions: (sessions) => set({ sessions }),
+      addSession: (session) => set((state) => {
+        if (state.sessions.some((s) => s.id === session.id)) return state
+        return { sessions: [...state.sessions, session] }
+      }),
+      updateSession: (id, updater) => set((state) => ({
+        sessions: state.sessions.map((s) => (s.id === id ? updater(s) : s)),
+      })),
+      setSelectedSessionId: (selectedSessionId) => set({ selectedSessionId }),
+      setAgents: (agents) => set({ agents }),
+      setAgentsLoading: (isLoadingAgents) => set({ isLoadingAgents }),
+      setAgentsError: (agentsError) => set({ agentsError }),
 
-  setActiveNode: (nodeId) => set({ activeNode: nodeId }),
-  setNodeState: (role, patch) => set((state) => ({
-    nodeStates: {
-      ...state.nodeStates,
-      [role]: { ...state.nodeStates[role], ...patch },
-    },
-  })),
-  setNodeStates: (states) => set({ nodeStates: states }),
-  addEdgeMessage: (message) => set((state) => ({
-    edgeMessages: [...state.edgeMessages.slice(-49), message],
-  })),
-  clearEdgeMessages: () => set({ edgeMessages: [] }),
-  setSelectedNodeId: (id) => set({ selectedNodeId: id }),
-  resetGraphState: () => set({
-    activeNode: null,
-    nodeStates: { ...INITIAL_NODE_STATES },
-    edgeMessages: [],
-    selectedNodeId: null,
-  }),
-}))
+      setActiveNode: (nodeId) => set({ activeNode: nodeId }),
+      setNodeState: (role, patch) => set((state) => ({
+        nodeStates: {
+          ...state.nodeStates,
+          [role]: { ...state.nodeStates[role], ...patch },
+        },
+      })),
+      setNodeStates: (states) => set({ nodeStates: states }),
+      addEdgeMessage: (message) => set((state) => ({
+        edgeMessages: [...state.edgeMessages.slice(-49), message],
+      })),
+      clearEdgeMessages: () => set({ edgeMessages: [] }),
+      setSelectedNodeId: (id) => set({ selectedNodeId: id }),
+      resetGraphState: () => set({
+        activeNode: null,
+        nodeStates: { ...INITIAL_NODE_STATES },
+        edgeMessages: [],
+        selectedNodeId: null,
+      }),
+    }),
+    { name: 'swarm-store' }
+  )
+)

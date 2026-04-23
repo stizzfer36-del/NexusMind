@@ -1,7 +1,7 @@
 import crypto from 'crypto'
 import { ServiceRegistry, SERVICE_TOKENS } from '../ServiceRegistry.js'
 import type { DatabaseService } from './DatabaseService.js'
-import type { EmbeddingProvider } from './EmbeddingProvider.js'
+import type { EmbeddingService } from './EmbeddingProvider.js'
 import type { MCPToolDefinition, MCPToolCallResult } from '@nexusmind/shared'
 
 type MemoryType = 'episodic' | 'semantic' | 'procedural' | 'working'
@@ -90,11 +90,121 @@ function mapToRecord(m: Map<string, number>): Record<string, number> {
 
 export class MemoryService {
   private db!: DatabaseService
+  private idfCache: Map<string, number> | null = null
+  private documentCount = 0
+  private termDocumentFreq = new Map<string, number>()
+  private idfCacheDirty = true
 
   init(): void {
     const registry = ServiceRegistry.getInstance()
     this.db = registry.resolve<DatabaseService>(SERVICE_TOKENS.DB)
+    this.ensureIDFTable()
+    this.loadIDFCache()
     registry.register(SERVICE_TOKENS.MemoryService, this)
+  }
+
+  private ensureIDFTable(): void {
+    this.db.getDb().exec(`
+      CREATE TABLE IF NOT EXISTS memory_idf_cache (
+        term TEXT PRIMARY KEY,
+        idf_value REAL NOT NULL,
+        doc_freq INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_memory_idf ON memory_idf_cache(term);
+    `)
+  }
+
+  private loadIDFCache(): void {
+    try {
+      const rows = this.db.getDb()
+        .prepare('SELECT term, idf_value, doc_freq FROM memory_idf_cache')
+        .all() as Array<{ term: string; idf_value: number; doc_freq: number }>
+
+      if (rows.length > 0) {
+        this.idfCache = new Map(rows.map(r => [r.term, r.idf_value]))
+        this.termDocumentFreq = new Map(rows.map(r => [r.term, r.doc_freq]))
+        this.documentCount = (this.db.getDb()
+          .prepare('SELECT COUNT(*) as cnt FROM memory_entries')
+          .get() as { cnt: number }).cnt
+        this.idfCacheDirty = false
+      }
+    } catch {
+      this.idfCache = null
+      this.idfCacheDirty = true
+    }
+  }
+
+  private saveIDFCache(): void {
+    if (!this.idfCache || !this.idfCacheDirty) return
+
+    const db = this.db.getDb()
+    const insert = db.prepare(`
+      INSERT OR REPLACE INTO memory_idf_cache (term, idf_value, doc_freq)
+      VALUES (?, ?, ?)
+    `)
+
+    const insertAll = db.transaction(() => {
+      for (const [term, idf] of this.idfCache!) {
+        const docFreq = this.termDocumentFreq.get(term) || 1
+        insert.run(term, idf, docFreq)
+      }
+    })
+
+    insertAll()
+    this.idfCacheDirty = false
+  }
+
+  private async updateIDFIncrementally(newContent: string): Promise<void> {
+    const tokens = new Set(tokenize(newContent))
+
+    if (this.idfCache === null) {
+      await this.rebuildIDFCache()
+      return
+    }
+
+    this.documentCount++
+
+    for (const term of tokens) {
+      const currentFreq = this.termDocumentFreq.get(term) || 0
+      this.termDocumentFreq.set(term, currentFreq + 1)
+
+      const idf = Math.log((this.documentCount + 1) / (currentFreq + 1 + 1)) + 1
+      this.idfCache.set(term, idf)
+    }
+
+    this.idfCacheDirty = true
+
+    if (this.documentCount % 100 === 0) {
+      this.saveIDFCache()
+    }
+  }
+
+  private async rebuildIDFCache(): Promise<void> {
+    const entries = this.db.getDb()
+      .prepare('SELECT content FROM memory_entries')
+      .all() as Array<{ content: string }>
+
+    const corpus = entries.map(e => e.content)
+    this.documentCount = corpus.length
+
+    const df = new Map<string, number>()
+    for (const doc of corpus) {
+      const terms = new Set(tokenize(doc))
+      for (const term of terms) {
+        df.set(term, (df.get(term) || 0) + 1)
+      }
+    }
+
+    this.idfCache = new Map()
+    this.termDocumentFreq = new Map(df)
+
+    for (const [term, count] of df) {
+      const idf = Math.log((this.documentCount + 1) / (count + 1)) + 1
+      this.idfCache.set(term, idf)
+    }
+
+    this.idfCacheDirty = true
+    this.saveIDFCache()
   }
 
   async store(entry: Omit<MemoryEntry, 'id' | 'createdAt' | 'updatedAt'>): Promise<MemoryEntry> {
@@ -102,26 +212,35 @@ export class MemoryService {
     const now = Date.now()
     const database = this.db.getDb()
 
-    // Fetch all existing contents to compute IDF (include new content in corpus)
-    const existingRows = database
-      .prepare(`SELECT content FROM memory_entries`)
-      .all() as Array<{ content: string }>
-    const corpus = existingRows.map((r) => r.content).concat(entry.content)
+    let embeddingJson: string
+    let usedSemantic = false
 
-    // Build TF-IDF vector for the new content
-    const tokens = tokenize(entry.content)
-    const tf = computeTF(tokens)
-    const idf = computeIDF(corpus)
-    const tfidfVec = buildTFIDF(tf, idf)
-    let embeddingJson = JSON.stringify(mapToRecord(tfidfVec))
-
-    // Try semantic embedding provider, fall back to TF-IDF
+    // Try semantic embedding provider first
     try {
-      const provider = ServiceRegistry.getInstance().resolve<EmbeddingProvider>(SERVICE_TOKENS.EmbeddingProvider)
-      const vector = await provider.embed(entry.content)
-      embeddingJson = JSON.stringify(vector)
-    } catch {
-      // Silently fall back to TF-IDF
+      const embeddingService = ServiceRegistry.getInstance().resolve<EmbeddingService>(SERVICE_TOKENS.EmbeddingProvider)
+      if (embeddingService.isAvailable()) {
+        const vector = await embeddingService.embed(entry.content)
+        embeddingJson = JSON.stringify(vector)
+        usedSemantic = true
+      } else {
+        throw new Error('Embedding service not available')
+      }
+    } catch (err) {
+      // Fall back to TF-IDF
+      const existingRows = database
+        .prepare(`SELECT content FROM memory_entries`)
+        .all() as Array<{ content: string }>
+      const corpus = existingRows.map((r) => r.content).concat(entry.content)
+
+      const tokens = tokenize(entry.content)
+      const tf = computeTF(tokens)
+      const idf = computeIDF(corpus)
+      const tfidfVec = buildTFIDF(tf, idf)
+      embeddingJson = JSON.stringify(mapToRecord(tfidfVec))
+
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[MemoryService] Using TF-IDF fallback (semantic embeddings unavailable):', err)
+      }
     }
 
     database
@@ -139,6 +258,8 @@ export class MemoryService {
         now,
         entry.relevanceScore ?? null
       )
+
+    await this.updateIDFIncrementally(entry.content)
 
     // Pruning: if count exceeds 10 000, remove the oldest 500 entries
     const { cnt } = database
@@ -166,18 +287,34 @@ export class MemoryService {
     }
   }
 
-  search(query: string, limit: number = 10, type?: string): MemorySearchResult[] {
+  async search(query: string, limit: number = 10, type?: string): Promise<MemorySearchResult[]> {
     const database = this.db.getDb()
 
-    // Build query TF-IDF vector
-    const existingRows = database
-      .prepare(`SELECT content FROM memory_entries`)
-      .all() as Array<{ content: string }>
-    const corpus = existingRows.map((r) => r.content)
-    const idf = computeIDF(corpus.concat(query))
-    const queryTokens = tokenize(query)
-    const queryTF = computeTF(queryTokens)
-    const queryVec = buildTFIDF(queryTF, idf)
+    // Try to get semantic embedding for query
+    let queryVector: number[] | null = null
+    let useSemantic = false
+    try {
+      const embeddingService = ServiceRegistry.getInstance().resolve<EmbeddingService>(SERVICE_TOKENS.EmbeddingProvider)
+      if (embeddingService.isAvailable()) {
+        queryVector = await embeddingService.embed(query)
+        useSemantic = true
+      }
+    } catch {
+      // Will fall back to TF-IDF
+    }
+
+    // Build TF-IDF vector as fallback
+    let queryTFIDF: Map<string, number> | null = null
+    if (!useSemantic) {
+      const existingRows = database
+        .prepare(`SELECT content FROM memory_entries`)
+        .all() as Array<{ content: string }>
+      const corpus = existingRows.map((r) => r.content)
+      const idf = computeIDF(corpus.concat(query))
+      const queryTokens = tokenize(query)
+      const queryTF = computeTF(queryTokens)
+      queryTFIDF = buildTFIDF(queryTF, idf)
+    }
 
     // Fetch entries, optionally filtered by type
     const rows = (
@@ -193,8 +330,15 @@ export class MemoryService {
       let similarity = 0
       if (row.embedding_json != null) {
         try {
-          const vec = recordToMap(JSON.parse(row.embedding_json) as Record<string, number>)
-          similarity = cosineSimilarity(queryVec, vec)
+          const vec = JSON.parse(row.embedding_json) as number[]
+          if (useSemantic && queryVector && Array.isArray(vec) && vec.length > 100) {
+            // Semantic embedding comparison
+            similarity = this.cosineSimilarityVectors(queryVector, vec)
+          } else {
+            // TF-IDF comparison
+            const vecMap = recordToMap(vec as unknown as Record<string, number>)
+            similarity = cosineSimilarity(queryTFIDF!, vecMap)
+          }
         } catch {
           // Malformed JSON — fall back to substring presence
           similarity = (row.content as string).toLowerCase().includes(query.toLowerCase()) ? 0.01 : 0
@@ -209,6 +353,22 @@ export class MemoryService {
     // Sort descending by similarity, return top `limit`
     scored.sort((a, b) => b.similarity - a.similarity)
     return scored.slice(0, limit)
+  }
+
+  private cosineSimilarityVectors(a: number[], b: number[]): number {
+    const minLen = Math.min(a.length, b.length)
+    let dotProduct = 0
+    let normA = 0
+    let normB = 0
+    
+    for (let i = 0; i < minLen; i++) {
+      dotProduct += a[i] * b[i]
+      normA += a[i] * a[i]
+      normB += b[i] * b[i]
+    }
+    
+    if (normA === 0 || normB === 0) return 0
+    return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB))
   }
 
   delete(id: string): void {
@@ -280,7 +440,7 @@ export class MemoryService {
       }
 
       if (input.query) {
-        const results = this.search(input.query, 5)
+        const results = await this.search(input.query, 5)
         return { success: true, output: JSON.stringify(results) }
       }
 
@@ -294,7 +454,7 @@ export class MemoryService {
     return {
       'memory:add': (_event: any, entry: Omit<MemoryEntry, 'id' | 'createdAt' | 'updatedAt'>) =>
         this.store(entry),
-      'memory:search': (
+      'memory:search': async (
         _event: any,
         payload: { query: string; type?: string; limit?: number }
       ) => this.search(payload.query, payload.limit ?? 10, payload.type),

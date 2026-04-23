@@ -1,4 +1,5 @@
 import { ServiceRegistry, SERVICE_TOKENS } from '../ServiceRegistry.js'
+import type { NexusRulesService } from './NexusRulesService.js'
 
 // ---------------------------------------------------------------------------
 // ContextService
@@ -8,6 +9,7 @@ import { ServiceRegistry, SERVICE_TOKENS } from '../ServiceRegistry.js'
 //   • Active file (last opened / edited file in the renderer)
 //   • Recent terminal / PTY output
 //   • Git diff (staged + unstaged changes)
+//   • Project rules from .nexusrules and .cursorrules files
 //
 // Injected into ModelRouter.route() as a leading SYSTEM message.
 // ---------------------------------------------------------------------------
@@ -91,6 +93,17 @@ export class ContextService {
 
   buildSystemContext(): string {
     const parts: string[] = []
+
+    // Project rules (from .nexusrules, .cursorrules, etc.)
+    try {
+      const rulesService = ServiceRegistry.getInstance().resolve<NexusRulesService>(SERVICE_TOKENS.NexusRules)
+      const rulesContext = rulesService.buildRulesContext()
+      if (rulesContext) {
+        parts.push(rulesContext)
+      }
+    } catch {
+      // NexusRules service not available - skip rules injection
+    }
 
     // Active file
     if (this.activeFile) {

@@ -387,19 +387,47 @@ export class GuardService {
   }
 
   async scanFile(filePath: string): Promise<GuardFinding[]> {
-    const runId = crypto.randomUUID()
+    const runId = `file-scan-${crypto.randomUUID()}`
     const findings: GuardFinding[] = []
 
-    if (isOnPath('semgrep')) {
-      const result = await withTimeout(runSemgrepScan(runId), 60000)
-      findings.push(...result.findings.filter(f => f.filePath === filePath || f.filePath.endsWith(filePath.split('/').pop() ?? '')))
+    try {
+      const fs = require('fs')
+      const content = fs.readFileSync(filePath, 'utf-8')
+      const lines = content.split('\n')
+
+      const SECRET_PATTERNS = [
+        { pattern: /(?:api[_-]?key|apikey)\s*[:=]\s*["']?([A-Za-z0-9\-_]{20,})["']?/gi, ruleId: 'secret/api-key' },
+        { pattern: /(?:secret|token|password|passwd|pwd)\s*[:=]\s*["']?([A-Za-z0-9\-_+/]{16,})["']?/gi, ruleId: 'secret/generic-secret' },
+        { pattern: /sk-[A-Za-z0-9]{40,}/g, ruleId: 'secret/openai-key' },
+        { pattern: /AKIA[0-9A-Z]{16}/g, ruleId: 'secret/aws-access-key' },
+        { pattern: /ghp_[A-Za-z0-9]{36}/g, ruleId: 'secret/github-token' },
+        { pattern: /AIza[0-9A-Za-z\-_]{35}/g, ruleId: 'secret/google-api-key' },
+      ]
+
+      for (let i = 0; i < lines.length; i++) {
+        for (const { pattern, ruleId } of SECRET_PATTERNS) {
+          pattern.lastIndex = 0
+          if (pattern.test(lines[i])) {
+            findings.push({
+              id: crypto.randomUUID(),
+              runId,
+              source: 'trufflehog',
+              severity: 'CRITICAL',
+              ruleId,
+              filePath,
+              line: i + 1,
+              message: `Potential secret detected (${ruleId})`,
+              snippet: lines[i].replace(/["']([A-Za-z0-9\-_+/]{8})[A-Za-z0-9\-_+/]+["']?/g, '"$1***"'),
+              recommendation: 'Remove the secret and rotate it immediately.',
+            })
+          }
+        }
+      }
+    } catch {
+      // File not readable or doesn't exist
     }
 
-    if (isOnPath('git')) {
-      const result = await withTimeout(runSecretsScan(runId), 60000)
-      findings.push(...result.findings.filter(f => f.filePath === filePath || f.filePath.endsWith(filePath.split('/').pop() ?? '')))
-    }
-
+    this.push('guard:fileScanResult', { filePath, findings })
     return findings
   }
 

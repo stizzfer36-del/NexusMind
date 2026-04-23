@@ -34,3 +34,6 @@ jobs:
 
       - name: Build (dry-run)
         run: pnpm run build --dry-run
+
+      - name: Test
+        run: pnpm test

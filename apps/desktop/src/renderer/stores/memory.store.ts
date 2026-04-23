@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { persist } from './persist'
 import type { MemoryEntry, MemorySearchResult, MemoryType } from '@nexusmind/shared'
 
 interface MemoryState {
@@ -18,19 +19,24 @@ interface MemoryState {
   clearError: () => void
 }
 
-export const useMemoryStore = create<MemoryState>((set) => ({
-  entries: [],
-  searchResults: [],
-  query: '',
-  typeFilter: 'all',
-  isLoading: false,
-  lastError: null,
+export const useMemoryStore = create<MemoryState>(
+  persist(
+    (set) => ({
+      entries: [],
+      searchResults: [],
+      query: '',
+      typeFilter: 'all',
+      isLoading: false,
+      lastError: null,
 
-  setEntries: (entries) => set({ entries }),
-  setSearchResults: (searchResults) => set({ searchResults }),
-  setQuery: (query) => set({ query }),
-  setTypeFilter: (typeFilter) => set({ typeFilter }),
-  setIsLoading: (isLoading) => set({ isLoading }),
-  setLastError: (lastError) => set({ lastError }),
-  clearError: () => set({ lastError: null }),
-}))
+      setEntries: (entries) => set({ entries }),
+      setSearchResults: (searchResults) => set({ searchResults }),
+      setQuery: (query) => set({ query }),
+      setTypeFilter: (typeFilter) => set({ typeFilter }),
+      setIsLoading: (isLoading) => set({ isLoading }),
+      setLastError: (lastError) => set({ lastError }),
+      clearError: () => set({ lastError: null }),
+    }),
+    { name: 'memory-store' }
+  )
+)

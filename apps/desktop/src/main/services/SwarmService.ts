@@ -12,6 +12,7 @@ import type { MCPService } from './MCPService.js'
 import type { LinkService } from './LinkService.js'
 import type { DatabaseService } from './DatabaseService.js'
 import { SwarmGraph, type AgentGraphState } from './SwarmGraph.js'
+import { parseAndValidateToolCalls, type ValidatedToolCall } from './ToolValidator.js'
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -383,13 +384,13 @@ export class SwarmService {
 
       let memoryContext = ''
       try {
-        const results = memory.search(task.title + ' ' + (task.description ?? ''), 5)
+        const results = await memory.search(task.title + ' ' + (task.description ?? ''), 5)
         if (results.length > 0) {
           memoryContext =
             '\n\n## Relevant Past Context (from NexusMemory):\n' +
             results
               .slice(0, 5)
-              .map((r, i) => `${i + 1}. ${r.entry.content.slice(0, 300)}`)
+              .map((r: any, i: number) => `${i + 1}. ${r.entry.content.slice(0, 300)}`)
               .join('\n')
         }
       } catch (err) {
@@ -451,29 +452,41 @@ export class SwarmService {
       }
 
       if (mcpService) {
-        let toolMatch: RegExpExecArray | null
-        while ((toolMatch = TOOL_PATTERN.exec(response)) !== null) {
-          const rawJson = toolMatch[1]
-          try {
-            const call = JSON.parse(rawJson) as { name: string; args: Record<string, unknown> }
-            if (typeof call.name === 'string' && call.args && typeof call.args === 'object') {
-              console.log(`[SwarmService] Agent ${agentId} (${role}) — executing tool: ${call.name}`)
-              const result = await mcpService.executeTool(call.name, call.args)
-              const resultStr = `[Tool: ${call.name}] Result: ${JSON.stringify(result).slice(0, 500)}`
-              toolResults.push(resultStr)
-              console.log(`[SwarmService] ${resultStr}`)
-            }
-          } catch (err) {
-            const errorMsg = `Failed to parse tool call JSON for agent ${agentId} (${role}): ${String(err)}`
+        const validatedCalls = parseAndValidateToolCalls(response)
+        
+        for (const call of validatedCalls) {
+          if (!call.valid) {
+            const errorMsg = `Tool validation error for agent ${agentId} (${role}): ${call.errors.join(', ')}`
             toolResults.push(errorMsg)
             recorder?.record({
               sessionId: state.sessionId,
-              type: 'tool:parse-error',
+              type: 'tool:validation-error',
               nodeId: role,
               agentId,
-              payload: { rawJson },
+              payload: { errors: call.errors, rawArgs: call.rawArgs },
             })
-            console.error(`[SwarmService] Agent ${agentId} (${role}) — tool parse error:`, err, 'rawJson:', rawJson)
+            console.error(`[SwarmService] ${errorMsg}`)
+            continue
+          }
+          
+          const validCall = call as ValidatedToolCall
+          try {
+            console.log(`[SwarmService] Agent ${agentId} (${role}) — executing tool: ${validCall.name}`)
+            const result = await mcpService.executeTool(validCall.name, validCall.args)
+            const resultStr = `[Tool: ${validCall.name}] Result: ${JSON.stringify(result).slice(0, 500)}`
+            toolResults.push(resultStr)
+            console.log(`[SwarmService] ${resultStr}`)
+          } catch (err) {
+            const errorMsg = `Tool execution error for agent ${agentId} (${role}): ${String(err)}`
+            toolResults.push(errorMsg)
+            recorder?.record({
+              sessionId: state.sessionId,
+              type: 'tool:execution-error',
+              nodeId: role,
+              agentId,
+              payload: { tool: validCall.name, error: String(err) },
+            })
+            console.error(`[SwarmService] ${errorMsg}`)
           }
         }
       }
